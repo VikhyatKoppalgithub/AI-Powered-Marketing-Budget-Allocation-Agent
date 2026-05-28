@@ -1,0 +1,224 @@
+%% proposal.tex
+%% MGMT 590-037 -- AI-Enhanced Optimization
+%% Final Project Proposal -- Team Submission
+%% Based on proposal_template.tex (Summer 2026)
+
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in, top=0.85in, bottom=1in]{geometry}
+\usepackage{amsmath, amssymb}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{mdframed}
+\usepackage{setspace}
+\usepackage{titlesec}
+\usepackage[protrusion=true,expansion=false]{microtype}
+\usepackage{hyperref}
+
+\definecolor{navyblue}{HTML}{1B2A4A}
+\definecolor{iceblue}{HTML}{CADCFC}
+\definecolor{goldyellow}{HTML}{F5A623}
+\definecolor{lightgray}{HTML}{F4F6FB}
+
+\hypersetup{colorlinks=true, linkcolor=navyblue, urlcolor=navyblue}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+
+\titleformat{\section}{\large\bfseries\color{navyblue}}{}{0em}{}[\vspace{-3pt}\rule{\linewidth}{0.7pt}\vspace{0pt}]
+\titlespacing*{\section}{0pt}{8pt}{2pt}
+\titlespacing*{\subsection}{0pt}{6pt}{2pt}
+
+\begin{document}
+
+%% -- Header ------------------------------------------------------------------
+\begin{center}
+  {\small\color{navyblue}
+    MGMT 590-037 \;\textperiodcentered\; AI-Enhanced Optimization \;\textperiodcentered\; Daniels School of Business}\\[5pt]
+  {\LARGE\bfseries\color{navyblue} Final Project Proposal}\\[4pt]
+  {\large\itshape Prediction to Prescription: Building an AI Agent}\\[5pt]
+  {\small
+    \textbf{Team:} [Team Number] \quad
+    \textbf{Project Title:} AI-Powered Marketing Budget Allocation Agent \quad
+    \textbf{Date:} [Due Date]}
+\end{center}
+
+\vspace{4pt}\hrule height 1.5pt\vspace{10pt}
+
+%% -- Team Table --------------------------------------------------------------
+\begin{center}
+\small
+\begin{tabular}{llll}
+\toprule
+\textbf{Name} & \textbf{Email} & \textbf{Program} & \textbf{Primary Role} \\
+\midrule
+Ana Valderrama   & avalder@purdue.edu & MBT & Data Collection \& Preparation \\
+Gregory Sapp     & sappg@purdue.edu & MBT & Prediction Layer (MMM) \\
+Meghna Advani    & advani3@purdue.edu & MS BAIM & Optimization Engine \\
+Piyush Sandhikar & psandhik@purdue.edu & MS BAIM & Problem Formulation Module \\
+Vikhyat Koppal   & vkoppal@purdue.edu & MS BAIM & Explanation \& Validation \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{6pt}
+
+%% ============================================================================
+\section{Section 1 --- Problem Statement and Business Context}
+
+\subsection*{1.1 \; Business Context}
+
+The decision-maker is the marketing or growth lead at a mid-market direct-to-consumer (DTC) e-commerce company spending roughly \$1--3M per quarter on paid digital media. Each week the team must split the upcoming week's spend across a fixed set of paid channels --- Google Search, Meta (Facebook/Instagram), TikTok, and YouTube. The status quo is a mix of last-touch attribution dashboards, last quarter's allocation rolled forward, and tactical reallocations driven by gut feel when a channel ``looks hot.'' This routinely leaves money on the table: over-funded channels saturate (incremental dollars stop producing incremental conversions), under-funded channels sit below the inflection point of their response curve, and reallocations lag behind real changes in CPM, CPC, and conversion rate.
+
+\subsection*{1.2 \; Problem Class}
+
+This is a multi-channel marketing budget allocation problem: each planning cycle (weekly), a marketing manager decides how much of a fixed total budget to spend on each of $N$ digital channels to maximize incremental conversions over the planning horizon, subject to the budget identity, channel-level minimum and maximum spend bounds, and saturating channel response curves. Channel returns diminish with increased spend (Hill / exponential-saturation form), so a proportional or equal split leaves conversions on the table --- the optimal allocation depends on each channel's saturation parameters and its marginal response at the chosen spend level, neither of which can be read directly off a dashboard.
+
+\subsection*{1.3 \; Why This Problem Is Hard Without an Agent}
+
+Three things make this hard for an unaided human. First, channel-level response curves are nonlinear and unobserved --- the diminishing-returns shape must be inferred from noisy, partially confounded historical spend-and-conversion data, and the curves shift as costs and audience composition change. Second, the optimal allocation depends on the \emph{marginal} response at the chosen spend level, not the \emph{average} ROAS, so the channel with the highest historical ROAS is often \emph{not} where the next dollar should go. Third, multiple constraints interact: a fixed total budget, channel-specific spend floors (brand-presence minimums) and ceilings (audience-size limits), and category caps. We expect the agent to (i) recover principled response-curve estimates with uncertainty, (ii) return an allocation that is provably optimal under those curves and constraints, and (iii) re-solve in seconds when a stakeholder changes a parameter. We will know it worked if the agent's allocation produces a meaningfully higher predicted conversion count than the baseline policy on the hold-out period.
+
+%% ============================================================================
+\section{Section 2 --- Data Plan}
+
+\subsection*{2.1 \; Primary Dataset}
+
+\begin{tabular}{@{}p{3.5cm}p{12cm}@{}}
+\toprule
+\textbf{Field} & \textbf{Details} \\
+\midrule
+Dataset name      & Multi-Region Marketing Mix Modeling Dataset \\
+Source / URL      & Kaggle public dataset (multi-region MMM with channel spend and eCommerce purchases) \\
+Approximate size  & $\sim$104 weekly observations $\times$ 20+ columns; 24-month window \\
+Key features      & Weekly per-channel spend (Google, Meta, TikTok, YouTube), impressions, CPM/CPC, region, eCommerce purchase volume, ROAS, CAC \\
+Outcome variable  & Weekly incremental conversions (purchases) attributable to the channel mix \\
+Known limitations & Limited geographic coverage; partial channel reporting in some weeks; no first-party customer-level data; attribution is platform-reported \\
+\bottomrule
+\end{tabular}
+
+\subsection*{2.2 \; Additional Datasets}
+
+\begin{itemize}[leftmargin=2em, itemsep=2pt]
+  \item \textbf{Google Analytics E-commerce Dataset (Supporting).} Customer segmentation, traffic-source attribution, and conversion-funnel data; used to validate MMM-implied conversion patterns. Source: Google Developers --- BigQuery Web E-commerce Demo.
+  \item \textbf{DT MART Marketing Mix Modeling Dataset (Backup).} Retail SKU-level spend and demand data; held as a backup in case primary dataset coverage proves insufficient. Source: Kaggle.
+\end{itemize}
+
+\subsection*{2.3 \; Train / Test Split}
+
+We use a \emph{chronological} (not random) split appropriate for time-series marketing data: approximately the first 70\% of weeks ($\sim$73 weeks) for training the MMM response curves, and the final 30\% ($\sim$31 weeks) held out for evaluating allocation decisions. Inside the training window, rolling-origin cross-validation will be used to tune adstock decay and saturation parameters. The hold-out period is never seen during model fitting or hyperparameter tuning.
+
+%% ============================================================================
+\section{Section 3 --- Methods Sketch}
+
+\subsection*{3.1 \; Prediction Layer}
+
+We estimate per-channel response curves of Hill / exponential-saturation form, $f_c(s) = a_c (1 - e^{-b_c s})$, with optional geometric adstock on lagged spend to capture carryover effects. Two candidate fitting paths: (a) \texttt{scipy.optimize.curve\_fit} for a fast point-estimate pass, and (b) LightweightMMM (Bayesian MMM) for posterior intervals on $(a_c, b_c)$. We use a standard MSE loss for the initial fit because the optimizer consumes point estimates of the curve parameters and an MSE-fit curve is the right object to feed it. As a stretch goal we will test a decision-aware loss (regret of the downstream allocation on the hold-out window) and compare its hold-out lift to the MSE-fit version. Posterior uncertainty on $(a_c, b_c)$ is propagated through to the optimizer via posterior-sample re-solves, used in the sensitivity analysis.
+
+\subsection*{3.2 \; Optimization Engine}
+
+Primary framework: \texttt{CVXPY} with ECOS or SCS as the underlying solver; \texttt{scipy.optimize.minimize} (SLSQP) as a fall-back and cross-check. Each channel's response $f_c(s)$ is concave in spend, so the negative of the total-conversion objective $-\sum_c f_c(s_c)$ is convex, the budget identity is linear, and the channel bounds are linear --- the base problem is a convex program with a unique global optimum that CVXPY will solve to specified tolerance. No global search is required for the base problem; SLSQP is reserved for any non-convex extensions (integer minimum-spend thresholds, piecewise objectives) that may come from the stakeholder modification.
+
+\subsection*{3.3 \; Constraint Handling}
+
+All constraints are passed to the solver as \emph{hard} constraints, not penalties:
+\begin{itemize}[leftmargin=2em, itemsep=1pt]
+  \item Budget identity $\sum_c s_c = B$ as an equality constraint.
+  \item Channel spend bounds $\ell_c \le s_c \le u_c$ as box constraints (brand-presence floors and audience-size ceilings).
+  \item Category caps as linear inequalities (e.g., ``social channels combined $\le 60\%$ of total'').
+\end{itemize}
+Penalty / projection methods are reserved as a fall-back if a stakeholder change introduces a constraint type CVXPY cannot represent directly.
+
+\subsection*{3.4 \; Baseline Comparison}
+
+The primary baseline is a \textbf{proportional-to-historical-spend} policy: average each channel's share over the training period and apply that share to the test-period budget. This mirrors what most marketing teams default to in practice (``last quarter's mix, rolled forward''). A secondary baseline is equal-split ($B/N$ per channel) to anchor the lower bound. The improvement metric is percentage lift in predicted conversions of the agent's allocation versus the baseline on the hold-out weeks: $\ge 5\%$ lift is treated as practically meaningful (deployment-worthy); $\ge 10\%$ as a strong result.
+
+\subsection*{3.5 \; Pipeline Diagram}
+
+\begin{center}
+\small
+\textbf{Spend \& conversion data}
+$\;\longrightarrow\;$
+\textbf{MMM prediction layer}\\
+\textit{(saturation $+$ adstock fit, uncertainty)}
+$\;\longrightarrow\;$
+\textbf{Channel response curves} $(a_c, b_c)$
+$\;\longrightarrow\;$\\
+\textbf{Convex allocator}
+\textit{(CVXPY / SLSQP under budget $+$ bounds $+$ caps)}
+$\;\longrightarrow\;$
+\textbf{Optimal spend vector $+$ LLM explanation}
+\end{center}
+
+%% ============================================================================
+\section{Section 4 --- Team Roles}
+
+\begin{center}
+\small
+\begin{tabular}{p{4.2cm}p{3.2cm}p{8cm}}
+\toprule
+\textbf{Component} & \textbf{Primary Owner} & \textbf{Brief Description of Responsibility} \\
+\midrule
+Problem Formulation Module     & Piyush Sandhikar  & LLM-based parser that turns a natural-language problem statement (budget, channels, objective, constraints) into a structured optimization specification consumed by the solver. \\
+Data Collection \& Preparation & Ana Valderrama    & Dataset sourcing, cleaning, feature engineering, train/test split construction, schema validation. \\
+Prediction Layer               & Gregory Sapp      & MMM specification, saturation and adstock parameter estimation, uncertainty quantification, hand-off of $(a_c, b_c)$ to the optimizer. \\
+Optimization Engine            & Meghna Advani     & CVXPY / SLSQP implementation, constraint construction, solver-tolerance tuning, convexity checks. \\
+Explanation \& Validation      & Vikhyat Koppal    & Plain-language explanations of recommendations, sensitivity analysis, benchmark comparison, Plotly / Streamlit demo. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Role assignments are not binding; team members will collaborate across components, especially at the prediction-to-optimization hand-off and on the LLM/agent integration. All members will share responsibility for the benchmark test and the stakeholder Q\&A defense.
+
+%% ============================================================================
+\section{Section 5 --- Benchmark and Validation Plan}
+
+\subsection*{5.1 \; Evaluating Your Own Problem}
+
+The primary success metric is percentage lift in predicted conversions on the hold-out weeks:
+\[
+\text{Lift} = \frac{\text{Conversions}_{\text{agent}} - \text{Conversions}_{\text{baseline}}}{\text{Conversions}_{\text{baseline}}}.
+\]
+We will also report (a) total predicted conversions under the agent vs.\ each baseline, (b) per-channel spend deltas (where the agent moves money relative to the baseline), and (c) robustness of the lift to MMM parameter uncertainty by re-running the optimizer under bootstrap / Bayesian posterior samples of $(a_c, b_c)$ and reporting the inter-quartile range of lift. A lift of $\ge 5\%$ over the proportional-to-historical baseline counts as practically meaningful (justifies deployment); $\ge 10\%$ as a strong result.
+
+\textbf{Sensitivity scenarios} (reported alongside the headline metric): $\pm 20\%$ change in total budget, $+15\%$ TikTok CPM shock, a Meta conversion-rate decrement, and a Gen-Z-acquisition vs.\ returning-customer-objective comparison.
+
+\textbf{Instructor benchmark.} In addition to our own held-out evaluation, the agent will be run against the standardized instructor benchmark problem (Section 7 of the project guidelines). We will report the agent's recommended decision, the achieved objective value, the comparison to the instructor's pre-computed optimal solution, and an explanation of any discrepancy in terms of which modeling assumption drove the gap.
+
+\subsection*{5.2 \; Stakeholder Robustness}
+
+\textbf{What is parameterized?} The optimizer accepts at runtime: total budget $B$, the channel set $\{c\}$, per-channel bounds $(\ell_c, u_c)$, category caps, objective weights (conversions vs.\ revenue vs.\ CAC), and the response-curve parameters. None of these are hard-coded inside the solver call. Hard-coded today (would require code changes): the functional form of the response curve and the time granularity (weekly).
+
+\textbf{How is a new problem description communicated to the agent?} Two pathways. (a) A structured JSON configuration object passed to the agent's \texttt{solve()} entry point --- this is the canonical machine interface used by tests and the benchmark. (b) A natural-language problem description handed to the LLM-based Problem Formulation Module, which parses it into the same JSON schema and routes it to the optimizer. Pathway (b) is what the stakeholder Q\&A will exercise during the final presentation.
+
+\textbf{What are the limits?} The agent handles \emph{gracefully}: changes to budget, channel set (add or remove channels that already have historical spend data), bounds, category caps, and switches between conversion-maximization and revenue-maximization objectives. The agent requires \emph{moderate re-engineering} for: changing the response-curve functional form, moving from single-period to multi-period (carryover-sensitive) optimization, or introducing integer / combinatorial decisions (e.g., binary ``run a campaign or not''). The agent \emph{cannot} handle out-of-the-box: introducing brand-new channels with no historical spend data (no curve to estimate), or shifting to a different unit of decision (e.g., per-creative rather than per-channel).
+
+\vspace{4pt}
+\textbf{AI-use disclosure (per Section 10 of the project guidelines).} The team uses ChatGPT and Claude for code-drafting suggestions, documentation cleanup, and as the LLM component within the agent itself. All optimization formulations, results, and managerial interpretations are verified by team members; every member can defend any element of the project on request.
+
+%% -- References --------------------------------------------------------------
+\section*{References}
+
+\begin{enumerate}[leftmargin=2em, itemsep=1pt]
+  \item Jin, Y., Wang, Y., Sun, Y., Chan, D., \& Koehler, J. (2017). \textit{Bayesian Methods for Media Mix Modeling with Carryover and Shape Effects}. Google Inc.
+  \item Diamond, S., \& Boyd, S. (2016). CVXPY: A Python-embedded modeling language for convex optimization. \textit{Journal of Machine Learning Research}, 17(83), 1--5.
+  \item Multi-Region Marketing Mix Modeling Dataset, Kaggle (accessed 2026).
+  \item Google Developers, BigQuery Web E-commerce Public Dataset.
+\end{enumerate}
+
+\vfill\hrule\vspace{4pt}
+{\small\color{navyblue}
+\textbf{Submit:} Push \texttt{proposal.pdf} to the team GitHub repo and share the link with \texttt{jaiswalp@purdue.edu}
+\hfill
+MGMT 590-037 \;|\; Project Proposal \;|\; Summer 2026}
+
+\end{document}
+|\; Summer 2026}
+
+\end{document}
+edu}
+\hfill
+MGMT 590-037 \;|\; Project Proposal \;|\; Summer 2026}
+
+\end{document}
