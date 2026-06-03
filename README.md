@@ -1,1 +1,125 @@
-# AI-Powered-Marketing-Budget-Allocation-Agent
+# MMM Budget Allocation Agent
+
+**MGMT 590-037 · AI-Enhanced Optimization · Purdue University · Summer 2026**
+
+**Team:** Ana Valderrama, Gregory Sapp, Meghna Advani, Piyush Sandhikar, Vikhyat Koppal
+
+## Problem statement
+
+Marketing teams spread budget across channels (Google, Meta, etc.) without knowing which allocation maximizes conversions. This agent ingests daily MMM-style spend and conversion data, cleans and profiles it, walks users through a backward analysis to define the optimization problem, and (when complete) allocates budget using saturation curves and constrained nonlinear optimization—with an AI guide scoped strictly to marketing analytics.
+
+## Technology stack
+
+- **Python** 3.11+
+- **Data:** pandas, numpy, scipy, scikit-learn
+- **UI:** Streamlit, Plotly
+- **LLM:** Google Gemini (`google-generativeai`) — placeholder in chat until `agent.py` is wired
+- **Config:** PyYAML, python-dotenv
+- **Testing:** pytest, pytest-cov
+
+## Project folder structure
+
+```
+AI-Powered-Marketing-Budget-Allocation-Agent/
+├── app/
+│   ├── app.py
+│   └── pages/
+│       ├── 1_upload_confirm.py
+│       ├── 2_backward_analysis.py
+│       ├── 3_allocation.py          (stub)
+│       ├── 4_curves.py              (stub)
+│       └── 5_scenarios.py           (stub)
+├── config.yaml
+├── data/raw/                        (gitignored uploads)
+├── data/processed/                  (gitignored outputs)
+├── docs/
+│   ├── architecture.md
+│   ├── data_pipeline.md
+│   ├── optimization.md
+│   ├── backward_analysis.md
+│   ├── agent_design.md
+│   └── setup.md
+├── notebooks/
+│   ├── 01_eda.ipynb
+│   └── 02_preprocessing.ipynb
+├── src/
+│   ├── data_prep.py
+│   ├── zip_handler.py
+│   ├── backward_analysis.py
+│   ├── guardrails.py
+│   ├── agent_prompts.py
+│   ├── mmm_model.py                 (stub)
+│   ├── optimizer.py                 (stub)
+│   ├── baseline.py                  (stub)
+│   ├── agent.py                     (stub)
+│   └── explainer.py                 (stub)
+├── tests/
+├── requirements.txt
+├── .env.example
+├── DEVELOPMENT_LOG.md
+└── README.md
+```
+
+## How to set up locally
+
+```bash
+git clone <repo-url>
+cd AI-Powered-Marketing-Budget-Allocation-Agent
+pip install -r requirements.txt
+cp .env.example .env    # add GEMINI_API_KEY when using the agent
+streamlit run app/app.py
+```
+
+See [docs/setup.md](docs/setup.md) for full setup steps.
+
+## How to run tests
+
+```bash
+pytest tests/ -v --tb=short
+```
+
+Expected: Ana module tests pass; teammate stub tests are skipped. Coverage target: 70% on `data_prep`, `zip_handler`, `backward_analysis`, `guardrails`, `agent_prompts`.
+
+## Current implementation status
+
+| Module | Owner | Status |
+|--------|-------|--------|
+| data_prep | Ana | Complete |
+| zip_handler | Ana | Complete |
+| backward_analysis | Ana | Complete |
+| guardrails | Ana | Complete |
+| agent_prompts | Ana | Complete |
+| Streamlit (upload + analysis + chat shell) | Ana | Complete |
+| mmm_model | Gregory | Not Started |
+| optimizer | Meghna | Not Started |
+| baseline | Meghna | Not Started |
+| agent (Gemini) | Piyush | Not Started |
+| explainer + viz pages | Vikhyat | Not Started |
+
+## Team roles
+
+| Member | Role | Files owned |
+|--------|------|-------------|
+| Ana Valderrama | Data engineering + agent skeleton | `data_prep`, `zip_handler`, `backward_analysis`, `guardrails`, `agent_prompts`, `app/app.py`, `pages/1_*`, `pages/2_*` |
+| Gregory Sapp | MMM / prediction | `mmm_model.py` |
+| Meghna Advani | Optimization | `optimizer.py`, `baseline.py` |
+| Piyush Sandhikar | AI agent | `agent.py` |
+| Vikhyat Koppal | Viz / sensitivity | `explainer.py`, `pages/3_*`–`5_*` |
+
+## Integration contracts
+
+| From | To | Interface |
+|------|-----|-----------|
+| Ana | Gregory | `data/processed/mmm_train.csv` |
+| Ana | Validation | `data/processed/mmm_test.csv` |
+| Ana | Meghna | `BackwardAnalysisResult` (confirmed objective + constraints) |
+| Ana | Piyush | `build_system_prompt(phase, turn_index)` |
+| Ana | All | `GuardrailsService` on every chat message |
+| Gregory | Meghna | `data/processed/channel_params.json` |
+| Meghna | Piyush + Vikhyat | `OptimResult` |
+
+See [docs/architecture.md](docs/architecture.md) for data flow and session state keys.
+
+## Development log
+
+Session-by-session progress: [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md)
