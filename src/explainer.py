@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
 from typing import Any, Callable
 
 import numpy as np
@@ -25,24 +24,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 
-# =============================================================================
-# Contract: OptimResult shape
-# =============================================================================
-# This mirrors what Meghna's optimizer is expected to return. The dataclass is
-# kept here so that the explainer module is testable in isolation. If Meghna's
-# real type differs, only this dataclass needs to change.
-
-@dataclass
-class OptimResult:
-    """Standard contract for optimization output across the project."""
-
-    allocation: dict[str, float]
-    predicted_conversions: float
-    total_spent: float
-    status: str
-    baseline_allocation: dict[str, float]
-    baseline_conversions: float
-    lift_pct: float
+from src.optimizer import OptimResult
 
 
 def _coerce(obj: Any, attr: str, default: Any = None) -> Any:

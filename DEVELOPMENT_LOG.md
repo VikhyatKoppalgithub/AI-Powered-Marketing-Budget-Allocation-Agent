@@ -1,5 +1,37 @@
 # Development Log
 
+## 2026-06-05 — Optimizer implementation (SLSQP + KKT)
+
+**Branch:** feature/optimizer  
+**Owner:** Meghna Advani  
+**Session goal:** Implement `optimizer.py` with multistart SLSQP, KKT verification, and tests consuming Gregory's `channel_params.json`.
+
+**What was built:**
+
+- `src/optimizer.py`: `objective`, `gradient`, `predicted_conversions`, `verify_kkt`, `solve`, `solve_from_file`, `load_params`
+- Multistart SLSQP (config `n_starts`, `tol`, `max_iter`); budget + non-negativity + optional caps
+- Shadow price `lambda_budget` from active-channel marginals
+- `tests/test_optimizer.py` (14 tests); integration tests for budget + KKT un-skipped
+
+**What still needs work:**
+
+- `baseline.py` stub
+- Wire `solve()` into Streamlit page 3 (Vikhyat)
+- Update `optimization.default_budget` to portfolio-scale (~$3.5M) after team sign-off
+
+**Integration notes:**
+
+- Expects Gregory's JSON keys = `config["channels"]["modeled"]` with `{"a", "b"}` per channel
+- `solve(params, budget, channels)` returns unified `OptimResult` for Piyush + Vikhyat
+- Aligned field names with Vikhyat's pages (`predicted_conversions`, `status`, etc.); explainer imports shared dataclass
+
+**How to test it:**
+
+```bash
+pytest tests/test_optimizer.py tests/test_integration.py::test_optimizer_budget_constraint_holds -v --tb=short
+python -c "from src.optimizer import load_params, solve; p=load_params('data/processed/channel_params.json'); print(solve(p, 3_500_000, list(p.keys())))"
+```
+
 ## 2026-06-02 — Ana MVP skeleton
 
 **Branch:** feature/data-prep  

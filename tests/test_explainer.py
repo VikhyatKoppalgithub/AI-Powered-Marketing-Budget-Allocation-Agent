@@ -15,7 +15,6 @@ import plotly.graph_objects as go
 import pytest
 
 from src.explainer import (
-    OptimResult,
     diagnose_allocation,
     generate_explanation,
     plot_allocation_bar,
@@ -24,6 +23,7 @@ from src.explainer import (
     plot_sensitivity_tornado,
     run_sensitivity,
 )
+from src.optimizer import OptimResult
 
 
 # -----------------------------------------------------------------------------
@@ -69,6 +69,9 @@ def optim_result():
         },
         baseline_conversions=68_000.0,
         lift_pct=20.6,
+        kkt_status="pass",
+        lambda_budget=0.05,
+        success=True,
     )
 
 
