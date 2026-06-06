@@ -143,7 +143,7 @@ AGENT_WORKFLOW_PROMPTS = {
 
 
 def build_system_prompt(phase: str, turn_index: int) -> str:
-    """Assemble the complete Gemini system prompt for a given phase and turn."""
+    """Assemble the complete Claude system prompt for a given phase and turn."""
     escalation = (
         "This is the first message. Respond in 3–4 sentences maximum. "
         "Ask one scope-invitation question only."

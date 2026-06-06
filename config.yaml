@@ -35,8 +35,8 @@ dropped_columns:
   - TIKTOK_SPEND
 
 llm:
-  provider: "gemini"
-  model: "gemini-1.5-pro"
+  provider: "claude"
+  model: "claude-sonnet-4-20250514"
   temperature: 0.2
   max_tokens: 1024
   scope: "marketing_optimization"
@@ -79,17 +79,19 @@ backward_analysis:
   narrate_each_stage: true
 
 channels:
+  # Modeled: spend nulls → 0; included in EDA, backward analysis, optimization
   modeled:
     - google_paid_search
     - google_shopping
     - google_pmax
     - meta_facebook
     - meta_instagram
+  # Dropped: columns removed (too sparse for saturation curves per Conjura EDA)
   dropped_sparse:
-    - google_display
-    - google_video
-    - meta_other
-    - tiktok
+    - google_display       # 85.9% null
+    - google_video         # 94.3% null
+    - meta_other           # 82.3% null
+    - tiktok               # 97.4% null
 
 fx_rates:
   USD: 1.0

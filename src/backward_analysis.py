@@ -14,6 +14,13 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
+from src.channel_policy import (
+    analysis_spend_columns,
+    classify_channels,
+    display_name,
+    format_dropped_channel_sentence,
+    format_modeled_channel_sentence,
+)
 from src.data_prep import load_config
 
 logger = logging.getLogger(__name__)
@@ -62,20 +69,6 @@ def _resolve_target(df: pd.DataFrame) -> str:
     raise ValueError("No target column found in dataset.")
 
 
-def _usable_channels(df: pd.DataFrame, threshold: float = 0.90) -> tuple[list[str], list[str]]:
-    spend_cols = [c for c in df.columns if "SPEND" in c.upper() or c.endswith("_adstock")]
-    usable, dropped = [], []
-    for col in spend_cols:
-        pct_null = df[col].isna().mean()
-        nonzero = (df[col].fillna(0) > 0).sum()
-        name = col.replace("_SPEND", "").replace("_adstock", "").lower()
-        if pct_null >= threshold or nonzero < 30:
-            dropped.append(name)
-        else:
-            usable.append(col)
-    return usable, dropped
-
-
 def stage_1_outcome_identification(df: pd.DataFrame) -> AnalysisStage:
     target = _resolve_target(df)
     s = df[target].dropna()
@@ -102,32 +95,48 @@ def stage_1_outcome_identification(df: pd.DataFrame) -> AnalysisStage:
     )
 
 
-def stage_2_channel_detection(df: pd.DataFrame) -> AnalysisStage:
-    usable, dropped = _usable_channels(df)
-    coverage = {}
-    for col in usable:
-        coverage[col] = 1.0 - df[col].isna().mean()
+def stage_2_channel_detection(df: pd.DataFrame, config: dict | None = None) -> AnalysisStage:
+    config = config or load_config()
+    modeled_keys, dropped_keys, modeled_raw = classify_channels(df, config)
+    policy_dropped = list(config["channels"]["dropped_sparse"])
+    column_map = config.get("column_map", {})
+
+    coverage: dict[str, float] = {}
+    for ch in modeled_keys:
+        raw = column_map.get(ch)
+        adstock = f"{ch}_adstock"
+        col = adstock if adstock in df.columns else raw
+        if col and col in df.columns:
+            coverage[display_name(ch)] = 1.0 - float(df[col].isna().mean())
+
     if coverage:
         chart = px.bar(
             x=list(coverage.values()),
             y=list(coverage.keys()),
             orientation="h",
             labels={"x": "non_null_pct", "y": "channel"},
-            title="Channel coverage (% non-null)",
+            title="Modeled channel coverage (% non-null)",
         )
     else:
         chart = go.Figure()
-    dropped_list = ", ".join(dropped) if dropped else "none"
+
+    modeled_sentence = format_modeled_channel_sentence(modeled_keys)
+    dropped_sentence = format_dropped_channel_sentence(policy_dropped)
     finding = (
-        f"We detected **{len(usable)}** usable marketing channels. "
-        f"{dropped_list} were present but too sparse to model reliably (>90% empty) — excluded. "
-        f"Here's the coverage by channel:"
+        f"We will model **{len(modeled_keys)}** marketing channels from your data: "
+        f"{modeled_sentence}. "
+        f"These match our EDA policy (sparse channels are excluded, not filled). "
+        f"**Excluded from the model:** {dropped_sentence}. "
+        f"Here's coverage for the modeled channels:"
     )
     return AnalysisStage(
         stage_id="channel_detection",
         title="Stage 2: Channel detection",
         finding=finding,
-        technical_detail="Channels require <90% null and >=30 non-zero spend days.",
+        technical_detail=(
+            "Modeled per config: 5 channels with null→0; "
+            "Display, Video, Meta Other, TikTok dropped as too sparse."
+        ),
         chart=chart,
     )
 
@@ -322,22 +331,20 @@ def run_backward_analysis(
     logger.info("Starting backward analysis")
 
     target = _resolve_target(df)
-    usable, _ = _usable_channels(df)
-    if not usable:
-        column_map = config.get("column_map", {})
-        usable = [f"{ch}_adstock" for ch in config["channels"]["modeled"] if f"{ch}_adstock" in df.columns]
-        if not usable:
-            usable = [column_map.get(ch, ch) for ch in config["channels"]["modeled"] if column_map.get(ch, ch) in df.columns]
+    modeled_keys, dropped_keys, _ = classify_channels(df, config)
+    spend_cols = analysis_spend_columns(df, config)
+    if not spend_cols:
+        raise ValueError("No modeled spend columns found for backward analysis.")
 
-    result = BackwardAnalysisResult(target_column=target, spend_columns=usable)
+    result = BackwardAnalysisResult(target_column=target, spend_columns=spend_cols)
 
     s1 = stage_1_outcome_identification(df)
     logger.info("Completed stage 1: %s", s1.stage_id)
-    s2 = stage_2_channel_detection(df)
-    channels = usable
+    s2 = stage_2_channel_detection(df, config)
+    channels = spend_cols
     s3 = stage_3_spend_response_relationship(df, channels, target)
     s4 = stage_4_saturation_check(df, channels, target)
-    s5 = stage_5_objective_formulation(channels)
+    s5 = stage_5_objective_formulation(modeled_keys or channels)
     s6 = stage_6_constraint_identification(df, channels, user_budget)
 
     spend_cols = [c for c in channels if c in df.columns]

@@ -14,7 +14,7 @@ The agent helps with: dataset upload, schema confirmation, backward analysis, bu
 flowchart LR
   input[User message]
   inRules[Input guardrails]
-  llm[Gemini placeholder]
+  llm[Claude via agent.py]
   outRules[Output guardrails]
   ui[Streamlit chat]
 
