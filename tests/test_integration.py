@@ -85,9 +85,19 @@ def test_optimizer_kkt_satisfied():
     pass
 
 
-@pytest.mark.skip(reason="Piyush implements")
-def test_agent_responds_in_scope():
-    pass
+def test_agent_responds_in_scope(monkeypatch):
+    from src.agent import run_agent
+
+    monkeypatch.setattr("src.agent.get_claude_client", lambda: None)
+
+    response = run_agent(
+        "How does backward analysis work for my marketing dataset?",
+        "system prompt",
+        [],
+        context={"phase": "upload_request", "backward_analysis_confirmed": True},
+    )
+    assert response
+    assert "ANTHROPIC_API_KEY" in response or "marketing" in response.lower()
 
 
 @pytest.mark.skip(reason="All team")

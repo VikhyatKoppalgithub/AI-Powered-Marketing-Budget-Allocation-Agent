@@ -11,9 +11,15 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from dotenv import load_dotenv
+
+load_dotenv(ROOT / ".env", override=False)
+load_dotenv(ROOT / "app" / ".env", override=False)
+
 import streamlit as st
 
-from src.agent_prompts import build_system_prompt
+from src.agent import diagnose_claude_setup, run_agent
+from src.agent_prompts import build_system_prompt, extract_company_context
 from src.guardrails import GuardrailsService
 
 st.set_page_config(
@@ -33,6 +39,7 @@ defaults = {
     "cleaned_df": None,
     "schema_profile": None,
     "backward_analysis_result": None,
+    "company_profile": {},
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -43,7 +50,7 @@ if "guardrails" not in st.session_state:
 
 st.title("MMM Budget Allocation Agent")
 st.caption("MGMT 590-037 · AI-Enhanced Optimization · Purdue University · Summer 2026")
-st.caption("Marketing Mix Modeling + Nonlinear Budget Optimization · Powered by Gemini 1.5 Pro")
+st.caption("Marketing Mix Modeling + Nonlinear Budget Optimization · Powered by Claude")
 
 with st.sidebar:
     st.header("Workflow progress")
@@ -71,6 +78,14 @@ with st.sidebar:
         st.markdown(f"{icon} {label}")
 
     st.divider()
+    claude_status = diagnose_claude_setup()
+    if claude_status["api_key_configured"]:
+        st.success("Claude API key detected")
+    else:
+        st.warning(
+            "No Claude API key found. Add `ANTHROPIC_API_KEY=...` to "
+            f"`{claude_status['repo_root']}/.env` and restart."
+        )
     st.caption("Upload a .zip or .csv file on the Upload page to begin.")
     if st.button("Go to Upload"):
         st.switch_page("pages/1_upload_confirm.py")
@@ -94,21 +109,36 @@ if prompt := st.chat_input("Ask me about your marketing data..."):
         st.session_state.conversation_history.append({"role": "user", "content": gr.sanitized})
         st.session_state.turn_index += 1
 
+        company_context = extract_company_context(
+            cleaned_df=st.session_state.get("cleaned_df"),
+            schema_profile=st.session_state.get("schema_profile"),
+            confirmed_target=st.session_state.get("confirmed_target"),
+            confirmed_budget=st.session_state.get("confirmed_budget"),
+            backward_analysis_result=st.session_state.get("backward_analysis_result"),
+            company_profile=st.session_state.get("company_profile"),
+        )
         system_prompt = build_system_prompt(
             phase=st.session_state.phase,
             turn_index=st.session_state.turn_index,
+            company_context=company_context,
         )
 
-        # TODO (Piyush): replace this placeholder with Gemini call via agent.py
-        _ = system_prompt
-        placeholder_response = (
-            f"[Agent placeholder — Phase: {st.session_state.phase}, "
-            f"Turn: {st.session_state.turn_index}]\n\n"
-            "Piyush will wire the Gemini call here. "
-            "Guardrails and system prompt are ready."
+        agent_context = {
+            "phase": st.session_state.phase,
+            "upload_complete": st.session_state.upload_complete,
+            "schema_confirmed": st.session_state.schema_confirmed,
+            "backward_analysis_confirmed": st.session_state.backward_analysis_confirmed,
+            "optimization_complete": st.session_state.optimization_complete,
+            "company_context": company_context,
+        }
+        raw_response = run_agent(
+            user_message=gr.sanitized,
+            system_prompt=system_prompt,
+            conversation_history=st.session_state.conversation_history,
+            context=agent_context,
         )
 
-        clean_response = st.session_state.guardrails.apply_output_guardrails(placeholder_response)
+        clean_response = st.session_state.guardrails.apply_output_guardrails(raw_response)
 
         with st.chat_message("assistant"):
             st.markdown(clean_response)

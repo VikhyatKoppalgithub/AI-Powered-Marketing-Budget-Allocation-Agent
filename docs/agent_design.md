@@ -2,7 +2,7 @@
 
 > **Owner:** Ana Valderrama  
 > **Last updated:** 2026-06-02  
-> **Status:** In Progress
+> **Status:** Complete
 
 ## Scope
 
@@ -14,7 +14,7 @@ The agent helps with: dataset upload, schema confirmation, backward analysis, bu
 flowchart LR
   input[User message]
   inRules[Input guardrails]
-  llm[Gemini placeholder]
+  llm[Claude API]
   outRules[Output guardrails]
   ui[Streamlit chat]
 
@@ -35,4 +35,4 @@ flowchart LR
 4. **Optimize** — Explain allocation, KKT, shadow price (blocked until Stage 7 confirmed).
 5. **Explore** — Interpret charts and follow-ups.
 
-Prompts are assembled in `agent_prompts.build_system_prompt()`. Piyush connects `agent.run_agent()` in `app.py` (TODO marked).
+Prompts are assembled in `agent_prompts.build_system_prompt()`. `agent.run_agent()` is wired in `app/app.py` with input/output guardrails and a no-key fallback for local demos.

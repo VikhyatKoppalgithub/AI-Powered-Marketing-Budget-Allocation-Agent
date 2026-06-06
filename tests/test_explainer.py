@@ -1,6 +1,6 @@
 """Unit tests for src/explainer.py.
 
-These tests do not require a GEMINI_API_KEY — explanation tests rely on the
+These tests do not require an ANTHROPIC_API_KEY — explanation tests rely on the
 deterministic template fallback. Plot tests verify only that figures are
 returned and structured correctly, not visual output.
 
@@ -77,7 +77,7 @@ def optim_result():
 # -----------------------------------------------------------------------------
 def test_generate_explanation_returns_nonempty_string(optim_result, monkeypatch):
     # Ensure no API key is picked up so we hit the template fallback
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("API_Key", raising=False)
     text = generate_explanation(optim_result, params={"budget": 25000})
     assert isinstance(text, str)
@@ -86,7 +86,7 @@ def test_generate_explanation_returns_nonempty_string(optim_result, monkeypatch)
 
 
 def test_generate_explanation_accepts_dict_input(optim_result, monkeypatch):
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("API_Key", raising=False)
     as_dict = {
         "allocation": optim_result.allocation,
