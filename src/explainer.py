@@ -48,7 +48,7 @@ def _channel_label(channel: str) -> str:
 def generate_explanation(optim_result: Any, params: dict) -> str:
     """Plain-English optimization explanation.
 
-    Uses Gemini if an API key is configured; otherwise falls back to a
+    Uses Claude if an API key is configured; otherwise falls back to a
     template-based explanation so the page never breaks during the demo.
     """
     allocation = _coerce(optim_result, "allocation", {})
@@ -57,41 +57,39 @@ def generate_explanation(optim_result: Any, params: dict) -> str:
     baseline_conv = _coerce(optim_result, "baseline_conversions", 0.0)
     lift = _coerce(optim_result, "lift_pct", 0.0)
 
-    # Try Gemini first
-    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("API_Key")
-    if api_key:
-        try:
-            import google.generativeai as genai  # local import keeps tests fast
+    # Try Claude first
+    try:
+        from src.agent import call_claude
 
-            genai.configure(api_key=api_key)
-            model_name = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-            model = genai.GenerativeModel(model_name)
+        context = {
+            "agent_allocation": allocation,
+            "agent_predicted_conversions": predicted,
+            "baseline_allocation": baseline,
+            "baseline_predicted_conversions": baseline_conv,
+            "lift_pct": lift,
+            "params": params,
+        }
 
-            context = {
-                "agent_allocation": allocation,
-                "agent_predicted_conversions": predicted,
-                "baseline_allocation": baseline,
-                "baseline_predicted_conversions": baseline_conv,
-                "lift_pct": lift,
-                "params": params,
-            }
-
-            prompt = (
-                "You are a marketing analyst explaining a budget allocation "
-                "decision to a CMO.\n\n"
-                "Write a 3-paragraph rationale in plain English (under 250 words):\n"
-                "1. Headline (1-2 sentences): the key shift from the baseline.\n"
-                "2. Why (3-4 sentences): which channels gained budget and which "
-                "lost it, framed in terms of saturation and marginal returns.\n"
-                "3. Risks + 1 sensitivity insight (2-3 sentences).\n\n"
-                "Be concrete with dollar amounts and percentages. No jargon. "
-                "Use Markdown headings for each section.\n\n"
-                f"CONTEXT:\n{json.dumps(context, indent=2, default=str)}"
-            )
-            return model.generate_content(prompt).text
-        except Exception as exc:  # noqa: BLE001 - we want to degrade gracefully
-            # Fall through to template
-            print(f"[explainer] Gemini failed, using fallback: {exc}")
+        prompt = (
+            "You are a marketing analyst explaining a budget allocation "
+            "decision to a CMO.\n\n"
+            "Write a 3-paragraph rationale in plain English (under 250 words):\n"
+            "1. Headline (1-2 sentences): the key shift from the baseline.\n"
+            "2. Why (3-4 sentences): which channels gained budget and which "
+            "lost it, framed in terms of saturation and marginal returns.\n"
+            "3. Risks + 1 sensitivity insight (2-3 sentences).\n\n"
+            "Be concrete with dollar amounts and percentages. No jargon. "
+            "Use Markdown headings for each section.\n\n"
+            f"CONTEXT:\n{json.dumps(context, indent=2, default=str)}"
+        )
+        explanation = call_claude(
+            messages=[{"role": "user", "content": prompt}],
+            system_prompt="You explain marketing optimization results clearly and concisely.",
+        )
+        if explanation:
+            return explanation
+    except Exception as exc:  # noqa: BLE001 - we want to degrade gracefully
+        print(f"[explainer] Claude failed, using fallback: {exc}")
 
     return _template_explanation(allocation, predicted, baseline, baseline_conv, lift)
 

@@ -12,7 +12,7 @@ alwaysApply: true
 - Standard dependencies for this project:
     pandas, numpy, scipy, scikit-learn       # core data
     plotly, streamlit                         # streamlit ui
-    google-generativeai, python-dotenv        # llm / api
+    anthropic, python-dotenv                  # llm / api
     pytest, pytest-cov                        # testing
     pyyaml, python-magic                      # utilities
 - Do NOT add openai, fastapi, uvicorn, or httpx — this project
