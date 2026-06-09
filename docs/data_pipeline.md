@@ -26,7 +26,8 @@ Hold out the **last 3 calendar months per `MMM_TIMESERIES_ID`** so each series h
 
 - **Granularity:** Daily, 143 timeseries (Conjura reference dataset).
 - **Nulls:** Spend nulls mean inactive channel; filled with 0. Verticals ~16% null.
-- **Sparse channels:** Display, video, meta_other, tiktok dropped (&gt;90% null).
+- **Modeled (5):** google_paid_search, google_shopping, google_pmax, meta_facebook, meta_instagram — nulls filled with 0.
+- **Dropped (4):** google_display, google_video, meta_other, tiktok — columns removed (too sparse; meta_instagram is modeled despite ~80% null).
 - **Currencies:** 14 codes normalized to USD via static ECB-style rates in `config.yaml`.
 
 See [setup.md](setup.md) for running the pipeline locally.

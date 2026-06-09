@@ -12,6 +12,7 @@ if str(ROOT) not in sys.path:
 import pandas as pd
 import streamlit as st
 
+from src.channel_policy import display_name
 from src.data_prep import run_pipeline
 from src.zip_handler import (
     auto_detect_schema,
@@ -86,10 +87,14 @@ if uploaded_file is not None:
 
     st.subheader("Marketing channels")
     st.markdown(
-        f"**Channels to model:** {', '.join(profile.detected_channels) or 'None detected'}"
+        "**Channels to model:** "
+        + (", ".join(display_name(ch) for ch in profile.detected_channels) or "None detected")
     )
     if profile.dropped_channels:
-        st.markdown(f"**Channels excluded** (too sparse): {', '.join(profile.dropped_channels)}")
+        st.markdown(
+            "**Channels excluded** (too sparse): "
+            + ", ".join(display_name(ch) for ch in profile.dropped_channels)
+        )
 
     if confirmation_data.get("warnings"):
         for w in confirmation_data["warnings"]:

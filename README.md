@@ -89,12 +89,12 @@ Expected: Ana + optimizer tests pass; remaining stub tests skipped. Coverage tar
 | backward_analysis | Ana | Complete |
 | guardrails | Ana | Complete |
 | agent_prompts | Ana | Complete |
-| Streamlit (upload + analysis + chat shell) | Ana | Complete |
+| Streamlit (upload → analysis → optimize → results) | Ana + Meghna | Complete |
 | mmm_model | Gregory | Complete |
 | optimizer | Meghna | Complete |
 | baseline | Meghna | Not Started |
 | agent (Claude) | Piyush | Complete |
-| explainer + viz pages | Vikhyat | Not Started |
+| explainer + viz pages | Vikhyat | Complete |
 
 ## Team roles
 

@@ -1,7 +1,7 @@
 # Setup
 
 > **Owner:** Ana Valderrama  
-> **Last updated:** 2026-06-06  
+> **Last updated:** 2026-06-09  
 > **Status:** In Progress
 
 ## Local setup from zero
