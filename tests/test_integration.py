@@ -75,14 +75,41 @@ def test_mmm_model_runs_after_data_prep():
     pass
 
 
-@pytest.mark.skip(reason="Meghna implements")
 def test_optimizer_budget_constraint_holds():
-    pass
+    from src.optimizer import solve
+
+    params = {
+        "google_paid_search": {"a": 5000.0, "b": 1e-5},
+        "google_shopping": {"a": 8000.0, "b": 1e-5},
+        "google_pmax": {"a": 6000.0, "b": 1e-5},
+        "meta_facebook": {"a": 7000.0, "b": 1e-5},
+        "meta_instagram": {"a": 3000.0, "b": 1e-5},
+    }
+    channels = list(params.keys())
+    budget = 250_000.0
+    result = solve(params, budget, channels, n_starts=10, seed=0)
+    assert sum(result.allocation.values()) <= budget + 1e-4
+    assert result.success
+    assert result.predicted_conversions > 0
 
 
-@pytest.mark.skip(reason="Meghna implements")
 def test_optimizer_kkt_satisfied():
-    pass
+    from src.optimizer import solve, verify_kkt
+
+    params = {
+        "google_paid_search": {"a": 5000.0, "b": 1e-5},
+        "google_shopping": {"a": 8000.0, "b": 1e-5},
+        "google_pmax": {"a": 6000.0, "b": 1e-5},
+        "meta_facebook": {"a": 7000.0, "b": 1e-5},
+        "meta_instagram": {"a": 3000.0, "b": 1e-5},
+    }
+    channels = list(params.keys())
+    budget = 250_000.0
+    result = solve(params, budget, channels, n_starts=10, seed=1)
+    kkt = verify_kkt(result, budget, channels, params=params, tol=1e-3)
+    assert kkt["budget_feasible"]
+    assert kkt["non_negative"]
+    assert kkt["status"] == "pass"
 
 
 @pytest.mark.skip(reason="Piyush implements")

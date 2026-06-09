@@ -48,8 +48,8 @@ AI-Powered-Marketing-Budget-Allocation-Agent/
 │   ├── backward_analysis.py
 │   ├── guardrails.py
 │   ├── agent_prompts.py
-│   ├── mmm_model.py                 (stub)
-│   ├── optimizer.py                 (stub)
+│   ├── mmm_model.py
+│   ├── optimizer.py
 │   ├── baseline.py                  (stub)
 │   ├── agent.py                     (stub)
 │   └── explainer.py                 (stub)
@@ -78,7 +78,7 @@ See [docs/setup.md](docs/setup.md) for full setup steps.
 pytest tests/ -v --tb=short
 ```
 
-Expected: Ana module tests pass; teammate stub tests are skipped. Coverage target: 70% on `data_prep`, `zip_handler`, `backward_analysis`, `guardrails`, `agent_prompts`.
+Expected: Ana + optimizer tests pass; remaining stub tests skipped. Coverage target: 70% on `data_prep`, `zip_handler`, `backward_analysis`, `guardrails`, `agent_prompts`.
 
 ## Current implementation status
 
@@ -90,8 +90,8 @@ Expected: Ana module tests pass; teammate stub tests are skipped. Coverage targe
 | guardrails | Ana | Complete |
 | agent_prompts | Ana | Complete |
 | Streamlit (upload + analysis + chat shell) | Ana | Complete |
-| mmm_model | Gregory | Not Started |
-| optimizer | Meghna | Not Started |
+| mmm_model | Gregory | Complete |
+| optimizer | Meghna | Complete |
 | baseline | Meghna | Not Started |
 | agent (Gemini) | Piyush | Not Started |
 | explainer + viz pages | Vikhyat | Not Started |
