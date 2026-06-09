@@ -13,7 +13,7 @@ Marketing teams spread budget across channels (Google, Meta, etc.) without knowi
 - **Python** 3.11+
 - **Data:** pandas, numpy, scipy, scikit-learn
 - **UI:** Streamlit, Plotly
-- **LLM:** Anthropic Claude (`anthropic`) — chat via `src/agent.py` when `ANTHROPIC_API_KEY` is set
+- **LLM:** Anthropic Claude (`anthropic`) — wired in `agent.py` with graceful fallback when no API key
 - **Config:** PyYAML, python-dotenv
 - **Testing:** pytest, pytest-cov
 
@@ -26,9 +26,9 @@ AI-Powered-Marketing-Budget-Allocation-Agent/
 │   └── pages/
 │       ├── 1_upload_confirm.py
 │       ├── 2_backward_analysis.py
-│       ├── 3_allocation.py          (stub)
-│       ├── 4_curves.py              (stub)
-│       └── 5_scenarios.py           (stub)
+│       ├── 3_allocation.py
+│       ├── 4_curves.py
+│       └── 5_scenarios.py
 ├── config.yaml
 ├── data/raw/                        (gitignored uploads)
 ├── data/processed/                  (gitignored outputs)
@@ -50,9 +50,9 @@ AI-Powered-Marketing-Budget-Allocation-Agent/
 │   ├── agent_prompts.py
 │   ├── mmm_model.py
 │   ├── optimizer.py
-│   ├── baseline.py                  (stub)
-│   ├── agent.py                     (stub)
-│   └── explainer.py                 (stub)
+│   ├── baseline.py
+│   ├── agent.py
+│   └── explainer.py
 ├── tests/
 ├── requirements.txt
 ├── .env.example
@@ -66,7 +66,7 @@ AI-Powered-Marketing-Budget-Allocation-Agent/
 git clone <repo-url>
 cd AI-Powered-Marketing-Budget-Allocation-Agent
 pip install -r requirements.txt
-cp .env.example .env    # add ANTHROPIC_API_KEY for Claude chat
+cp .env.example .env    # add ANTHROPIC_API_KEY when using the agent
 streamlit run app/app.py
 ```
 
@@ -89,12 +89,12 @@ Expected: Ana + optimizer tests pass; remaining stub tests skipped. Coverage tar
 | backward_analysis | Ana | Complete |
 | guardrails | Ana | Complete |
 | agent_prompts | Ana | Complete |
-| Streamlit (upload + analysis + chat shell) | Ana | Complete |
+| Streamlit (upload → analysis → optimize → results) | Ana + Meghna | Complete |
 | mmm_model | Gregory | Complete |
 | optimizer | Meghna | Complete |
-| baseline | Meghna | Not Started |
-| agent (Gemini) | Piyush | Not Started |
-| explainer + viz pages | Vikhyat | Complete|
+| baseline | Meghna | Complete |
+| agent (Claude) | Piyush | Complete |
+| explainer + viz pages | Vikhyat | Complete |
 
 ## Team roles
 

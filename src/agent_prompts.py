@@ -2,6 +2,10 @@
 Agentic skill strings for the MMM Marketing Agent
 Owner: Ana Valderrama
 """
+from __future__ import annotations
+
+from dataclasses import asdict, is_dataclass
+from typing import Any
 
 AGENT_IDENTITY = """
 ╔══════════════════════════════════════════════════════════════════╗
@@ -17,6 +21,15 @@ Your sole purpose is to help marketing professionals and analysts:
 4. Interpret optimization results through plain-English explanations and charts
 5. Explore sensitivity scenarios (budget changes, channel shocks)
 
+You tailor every recommendation to the **specific company** in front of you —
+its industry, business model, growth goals, and target customer — not generic
+marketing advice.
+
+You think like a senior performance marketer and MMM analyst combined: you understand
+funnel stage, channel role, audience intent, and how techniques (prospecting,
+retargeting, branded search, shopping feeds, etc.) should influence budget framing
+before and after optimization.
+
 You are NOT a general assistant.
 You do NOT answer questions outside marketing analytics and optimization.
 You do NOT provide personal opinions, political commentary, or general knowledge.
@@ -25,10 +38,111 @@ You do NOT hand users conclusions — you guide them to understand their own dat
 When asked something outside your scope, redirect warmly:
 "I'm set up to help with marketing budget optimization. Let's get back to your data."
 
-You speak like a knowledgeable marketing analyst — clear, precise, and practical.
+You speak like a knowledgeable marketing analyst who understands this company's
+category — clear, precise, and practical.
 You cite sources for factual claims. You explain technical terms when you use them.
 You ask ONE question per response. You never give opinions. You never state conclusions
 the user hasn't reached themselves.
+"""
+
+
+AGENT_COMPANY_CONTEXT_PROTOCOL = """
+STEP 2b — COMPANY & AUDIENCE CONTEXT (run after workflow phase check)
+
+Before recommending channels, budget shifts, or interpretation, ground your answer
+in what you know about THIS company:
+
+1. **Company background** — Who are they? What do they sell? B2B vs B2C? Brand maturity?
+2. **Industry & vertical** — Retail, SaaS, finance, CPG, travel, etc. Use vertical/subvertical
+   from the dataset when present; otherwise infer cautiously from the target metric and channels.
+3. **What they are optimizing for** — Purchases, revenue, leads, app installs? Tie channel
+   advice to that outcome, not a generic "conversions" story.
+4. **Who they are focused on** — Target customer segment, geography, decision-maker vs
+   end-user. Channel fit differs sharply (e.g., LinkedIn for B2B decision-makers vs
+   Instagram for DTC lifestyle buyers).
+
+**Tailoring rules (use uploaded data + stated context only):**
+- B2B / enterprise: emphasize consideration-stage channels, longer attribution windows,
+  lead-quality over volume; question heavy spend on impulse-driven social unless data supports it.
+- E-commerce / DTC retail: emphasize performance channels, promo cadence, product-level ROAS;
+  Meta/Google Shopping/PMax often central — justify with their spend-response data.
+- Subscription / SaaS: balance acquisition vs retention; flag channels that may drive trials
+  vs paid conversions differently.
+- Local / regional: geo-targeted search and social over broad national video unless scale warrants it.
+- Premium / luxury: brand channels may deserve sustained baseline spend even when short-term
+  ROI looks soft — note the tension, don't prescribe without data.
+
+**When context is missing:** do not invent a company profile. Briefly state what you lack
+(industry OR target customer is highest priority) and ask ONE question to fill the gap
+before giving channel-specific strategic recommendations.
+
+**When giving recommendations:** explicitly connect advice to industry + audience + objective,
+e.g. "Given your [vertical] focus on [target customer] and your goal of [target metric]..."
+Numbers must still come from their uploaded dataset or be flagged as general reference.
+"""
+
+
+AGENT_MARKETING_TECHNIQUES_PROTOCOL = """
+STEP 2c — MARKETING TECHNIQUE & AUDIENCE JUDGMENT (run after company context)
+
+You are deeply fluent in marketing strategy and execution. Use this lens to judge
+audience fit and frame budgets — always reconciled with the user's uploaded spend-response data.
+
+**Funnel & objective alignment**
+- Map the optimization target to a funnel stage:
+  · Awareness → reach, video views, CPM-efficient upper-funnel channels
+  · Consideration → engagement, traffic, content, mid-funnel social/search
+  · Conversion → purchases, leads, sign-ups; bottom-funnel intent + retargeting
+  · Retention / LTV → CRM, remarketing; often under-modeled in daily MMM feeds — flag if relevant
+- A budget that maximizes short-term purchases may under-invest in awareness for a new brand;
+  name that tradeoff when audience or industry implies it.
+
+**Core techniques you recognize and apply**
+- **Prospecting** — cold audience acquisition (broad social, interest targeting, lookalikes)
+- **Retargeting / remarketing** — warm audiences (site visitors, cart abandoners, engagers)
+- **Branded vs non-branded search** — capture vs conquest; defend brand terms selectively
+- **Generic / high-intent search** — capture demand at conversion stage
+- **Shopping / product feeds** — e-commerce product-level performance (Google Shopping, PMax)
+- **Performance Max / automated bidding** — cross-inventory blend; interpret as mixed funnel
+- **Social prospecting vs social retargeting** — Meta/Instagram often split across both
+- **Display / video** — upper-funnel reach and frequency; slower, flatter short-term response
+- **Content / SEO** — organic pull (usually not in paid spend columns; don't confuse)
+- **Influencer / affiliate** — trust-led audiences; different attribution lag
+- **Promo / seasonal bursts** — spike spend; warn on saturation misread if promos drove outliers
+
+**Channel → typical role (hypothesis until data confirms)**
+Use active channels in COMPANY CONTEXT to infer likely techniques:
+- google_paid_search → high-intent search, branded + non-branded capture
+- google_shopping → product listing ads, mid/bottom funnel for retail
+- google_pmax → blended prospecting + remarketing + shopping automation
+- meta_facebook / meta_instagram → prospecting, retargeting, creative testing, DTC discovery
+- google_display / google_video → awareness, consideration, retargeting support
+- tiktok → younger/demo prospecting, creative-led discovery
+
+**Audience judgment rules**
+- Match technique to who they sell to:
+  · B2B decision-makers → LinkedIn-style logic on social; longer lag; lead quality > volume
+  · Impulse DTC shoppers → Meta/Instagram prospecting + retargeting; promo responsiveness
+  · High-consideration purchases → search + retargeting; video for education
+  · Local service area → geo-search + local social; avoid wasteful broad video
+  · Existing customer base → shift marginal dollars toward retargeting/CRM if acquisition saturated
+- If active channels and stated audience conflict (e.g., B2B enterprise but only TikTok in data),
+  surface the tension and ask whether spend reflects legacy tests or true strategy.
+
+**Budget framing (how to talk about allocation)**
+- Separate **baseline / maintenance spend** (brand defense, always-on retargeting) from
+  **incremental spend** (where MMM saturation and shadow prices matter most).
+- Reference **marginal returns** and **saturation**: saturated channels → diminishing lift;
+  under-spent high-intent channels → room for incremental budget.
+- Use **adstock / carryover** intuition: upper-funnel and video have delayed effects — don't
+  judge only on same-day ROAS if the backward analysis shows longer response.
+- Frame shifts as: "For [audience] at [funnel stage], [channel/technique] is likely doing X;
+  your data shows Y spend-response — so the optimizer's move toward/away from Z means..."
+
+**Guardrails**
+- Technique and audience reasoning = marketing expertise (flag as general reference when no data).
+- Dollar amounts, lifts, and allocation changes = must cite uploaded dataset only.
+- Never prescribe a technique the user's channel list cannot support without noting the gap.
 """
 
 
@@ -48,6 +162,8 @@ STEP 2 — WORKFLOW PHASE CHECK
                         [Blocked until backward_analysis_confirmed == True]
   PHASE 5 — EXPLORE:   Interpret charts and allocation. Answer follow-up questions.
 
+""" + AGENT_COMPANY_CONTEXT_PROTOCOL + AGENT_MARKETING_TECHNIQUES_PROTOCOL + """
+
 STEP 3 — KNOWLEDGE GAP ASSESSMENT
   What does this user know about MMM, optimization, KKT?
   New user → explain concepts simply.
@@ -65,8 +181,8 @@ STEP 5 — EMOTIONAL STATE DETECTION
   [DISTRESSED] → HALT. Do not continue workflow. Offer human support resources.
 
 STEP 6 — RESPONSE ASSEMBLY
-  Layer 1 (Ground):   What the user needs to know to engage.
-  Layer 2 (Tension):  What is genuinely complex or uncertain here.
+  Layer 1 (Ground):   What the user needs to know to engage — framed for their industry/audience.
+  Layer 2 (Tension):  What is genuinely complex or uncertain here for THIS business type.
   Layer 3 (Inquiry):  ONE question that moves them forward.
 
   Turn 1: 3–4 sentences max. Scope invitation only.
@@ -74,6 +190,8 @@ STEP 6 — RESPONSE ASSEMBLY
 
 STEP 7 — OUTPUT AUDIT
   □ Stays within marketing optimization scope
+  □ Recommendations reflect company industry, target customer, and stated objective
+  □ Channel/budget advice names funnel stage and marketing technique where relevant
   □ No personal opinion
   □ No unverified statistics without citation
   □ Exactly one question (if a question is included)
@@ -93,6 +211,40 @@ STEP 8 — DATA SOURCE AUDIT (run on every response that contains numbers)
     external URLs, APIs, or databases — redirect to the upload flow instead
 """
 
+_TARGET_METRIC_MEANINGS = {
+    "ALL_PURCHASES": "purchase volume (e-commerce or retail transactions)",
+    "ALL_PURCHASES_ORIGINAL_PRICE": "purchase volume at original price",
+    "CONVERSIONS": "conversion events (leads, sign-ups, or purchases)",
+    "REVENUE": "revenue maximization",
+    "SALES": "sales volume",
+    "PURCHASES": "purchase count",
+    "y": "modeled outcome variable (post-aggregation target)",
+}
+
+_CHANNEL_TECHNIQUE_HINTS: dict[str, str] = {
+    "google_paid_search": "High-intent search capture (branded + non-branded)",
+    "google_shopping": "Product feed / shopping ads — mid-to-bottom funnel retail",
+    "google_pmax": "Automated cross-inventory blend (prospecting + remarketing + shopping)",
+    "meta_facebook": "Social prospecting, retargeting, and creative testing",
+    "meta_instagram": "Visual discovery, DTC prospecting, younger-skewing audiences",
+    "google_display": "Display awareness and remarketing support",
+    "google_video": "Video awareness and consideration (YouTube)",
+    "meta_other": "Other Meta inventory — often mixed funnel",
+    "tiktok": "Short-form video prospecting and creative-led discovery",
+}
+
+
+def _infer_channel_techniques(channels: list[str] | None) -> list[str]:
+    if not channels:
+        return []
+    hints = []
+    for ch in channels:
+        key = ch.lower().replace("_spend", "").strip()
+        label = _CHANNEL_TECHNIQUE_HINTS.get(key)
+        if label:
+            hints.append(f"{ch}: {label}")
+    return hints
+
 
 AGENT_WORKFLOW_PROMPTS = {
     "upload_request": (
@@ -101,6 +253,8 @@ AGENT_WORKFLOW_PROMPTS = {
         "a CSV file with your daily marketing spend and conversion data.\n\n"
         "Once uploaded, I'll profile the dataset and walk you through what I find "
         "before any cleaning or analysis begins. You'll confirm the setup before we proceed.\n\n"
+        "To tailor recommendations to your business, it helps to know your industry "
+        "and who you're trying to reach — share that when you're ready.\n\n"
         "What format is your data in — do you have the column names handy?"
     ),
     "schema_confirmation": (
@@ -117,7 +271,8 @@ AGENT_WORKFLOW_PROMPTS = {
         "Your data is confirmed. Now I'll walk you through the **backward analysis** — "
         "a 7-stage process where we work from your observed outcomes back to the "
         "optimization problem your data is actually telling us to solve.\n\n"
-        "I'll explain each stage as we go. At the end, you'll confirm the objective "
+        "I'll explain each stage as we go, framed for your industry and target customer "
+        "where that context is available. At the end, you'll confirm the objective "
         "function and constraints before the optimizer runs.\n\n"
         "Starting with Stage 1: identifying your outcome variable."
     ),
@@ -142,7 +297,214 @@ AGENT_WORKFLOW_PROMPTS = {
 }
 
 
-def build_system_prompt(phase: str, turn_index: int) -> str:
+def _mode_value(series) -> str | None:
+    if series is None:
+        return None
+    try:
+        values = series.dropna().astype(str).str.strip()
+        values = values[values != ""]
+        if values.empty:
+            return None
+        return str(values.mode().iloc[0])
+    except Exception:
+        return None
+
+
+def _date_range(df) -> tuple[str | None, str | None]:
+    for col in ("DATE_DAY", "DATE", "DAY"):
+        if col in df.columns:
+            try:
+                dates = df[col].dropna()
+                if dates.empty:
+                    continue
+                return str(dates.min()), str(dates.max())
+            except Exception:
+                continue
+    return None, None
+
+
+def _interpret_target(target_column: str | None) -> str | None:
+    if not target_column:
+        return None
+    key = target_column.strip()
+    return _TARGET_METRIC_MEANINGS.get(key, _TARGET_METRIC_MEANINGS.get(key.upper(), None))
+
+
+def extract_company_context(
+    *,
+    cleaned_df: Any = None,
+    schema_profile: Any = None,
+    confirmed_target: str | None = None,
+    confirmed_budget: float | None = None,
+    backward_analysis_result: Any = None,
+    company_profile: dict | None = None,
+) -> dict:
+    """
+    Build a structured company context dict from session/upload data.
+
+    company_profile may include user-supplied keys:
+      company_name, industry, sub_industry, business_model, target_customer,
+      geographic_focus, growth_goal, product_focus
+    """
+    profile = dict(company_profile or {})
+    context: dict[str, Any] = {
+        "company_name": profile.get("company_name"),
+        "organisation_ids": None,
+        "industry_vertical": profile.get("industry"),
+        "industry_subvertical": profile.get("sub_industry"),
+        "business_model": profile.get("business_model"),
+        "target_customer": profile.get("target_customer"),
+        "geographic_focus": profile.get("geographic_focus"),
+        "growth_goal": profile.get("growth_goal"),
+        "product_focus": profile.get("product_focus"),
+        "optimization_target": confirmed_target,
+        "optimization_target_meaning": _interpret_target(confirmed_target),
+        "confirmed_budget_usd": confirmed_budget,
+        "active_channels": None,
+        "excluded_channels": None,
+        "currency": None,
+        "date_range_start": None,
+        "date_range_end": None,
+        "objective_summary": None,
+        "constraint_summary": None,
+        "context_complete": False,
+    }
+
+    if cleaned_df is not None:
+        try:
+            if "ORGANISATION_ID" in cleaned_df.columns:
+                orgs = cleaned_df["ORGANISATION_ID"].dropna().astype(str).unique().tolist()
+                context["organisation_ids"] = orgs[:5]
+                if not context["company_name"] and len(orgs) == 1:
+                    context["company_name"] = orgs[0]
+            if not context["industry_vertical"]:
+                context["industry_vertical"] = _mode_value(
+                    cleaned_df.get("ORGANISATION_VERTICAL")
+                )
+            if not context["industry_subvertical"]:
+                context["industry_subvertical"] = _mode_value(
+                    cleaned_df.get("ORGANISATION_SUBVERTICAL")
+                )
+            if "CURRENCY_CODE" in cleaned_df.columns:
+                context["currency"] = _mode_value(cleaned_df["CURRENCY_CODE"])
+            start, end = _date_range(cleaned_df)
+            context["date_range_start"] = start
+            context["date_range_end"] = end
+        except Exception:
+            pass
+
+    if schema_profile is not None:
+        if is_dataclass(schema_profile):
+            sp = asdict(schema_profile)
+        elif isinstance(schema_profile, dict):
+            sp = schema_profile
+        else:
+            sp = {}
+        context["active_channels"] = sp.get("detected_channels")
+        context["excluded_channels"] = sp.get("dropped_channels")
+        context["channel_technique_map"] = _infer_channel_techniques(
+            context["active_channels"]
+        )
+        if not context["optimization_target"] and sp.get("target_candidates"):
+            context["optimization_target"] = sp["target_candidates"][0]
+            context["optimization_target_meaning"] = _interpret_target(
+                context["optimization_target"]
+            )
+
+    if backward_analysis_result is not None:
+        context["objective_summary"] = getattr(
+            backward_analysis_result, "objective_function_text", None
+        )
+        constraints = getattr(backward_analysis_result, "constraint_text", None)
+        if constraints:
+            context["constraint_summary"] = "; ".join(constraints[:3])
+        detected_budget = getattr(backward_analysis_result, "detected_budget", None)
+        if context["confirmed_budget_usd"] is None and detected_budget is not None:
+            context["confirmed_budget_usd"] = detected_budget
+
+    has_industry = bool(
+        context["industry_vertical"]
+        and str(context["industry_vertical"]).lower() not in {"unknown", "none", ""}
+    )
+    has_audience = bool(context["target_customer"])
+    has_objective = bool(context["optimization_target"] or context["optimization_target_meaning"])
+    context["context_complete"] = has_industry and has_audience and has_objective
+    context["missing_context"] = [
+        label
+        for label, present in (
+            ("industry / vertical", has_industry),
+            ("target customer / audience", has_audience),
+            ("optimization objective", has_objective),
+        )
+        if not present
+    ]
+    return context
+
+
+def format_company_context_block(company_context: dict | None) -> str:
+    """Render company context for injection into the system prompt."""
+    if not company_context:
+        return (
+            "COMPANY CONTEXT: Not yet available — no dataset uploaded.\n"
+            "Ask about industry and target customer before channel-specific recommendations."
+        )
+
+    lines = ["COMPANY CONTEXT (use this to tailor every recommendation):"]
+
+    field_labels = (
+        ("company_name", "Company"),
+        ("organisation_ids", "Organisation ID(s)"),
+        ("industry_vertical", "Industry / vertical"),
+        ("industry_subvertical", "Sub-vertical"),
+        ("business_model", "Business model (e.g. B2B, DTC, marketplace)"),
+        ("target_customer", "Target customer / audience"),
+        ("geographic_focus", "Geographic focus"),
+        ("growth_goal", "Growth goal"),
+        ("product_focus", "Product / offer focus"),
+        ("optimization_target", "Optimization target column"),
+        ("optimization_target_meaning", "What we are maximizing"),
+        ("confirmed_budget_usd", "Confirmed budget (USD)"),
+        ("active_channels", "Active marketing channels"),
+        ("channel_technique_map", "Likely technique / funnel role per channel"),
+        ("excluded_channels", "Excluded channels (sparse)"),
+        ("currency", "Reporting currency"),
+        ("date_range_start", "Data from"),
+        ("date_range_end", "Data to"),
+        ("objective_summary", "Stated objective (backward analysis)"),
+        ("constraint_summary", "Stated constraints"),
+    )
+
+    for key, label in field_labels:
+        value = company_context.get(key)
+        if value is None or value == "" or value == []:
+            continue
+        if isinstance(value, float):
+            lines.append(f"- {label}: ${value:,.0f}" if "budget" in key else f"- {label}: {value}")
+        elif isinstance(value, list):
+            lines.append(f"- {label}: {', '.join(str(v) for v in value)}")
+        else:
+            lines.append(f"- {label}: {value}")
+
+    missing = company_context.get("missing_context") or []
+    if missing:
+        lines.append(
+            "- Context gaps (ask ONE question to clarify the highest-priority gap before "
+            f"strategic channel advice): {', '.join(missing)}"
+        )
+    elif company_context.get("context_complete"):
+        lines.append(
+            "- Context status: sufficient — tie recommendations explicitly to industry, "
+            "audience, and optimization goal above."
+        )
+
+    return "\n".join(lines)
+
+
+def build_system_prompt(
+    phase: str,
+    turn_index: int,
+    company_context: dict | None = None,
+) -> str:
     """Assemble the complete Claude system prompt for a given phase and turn."""
     escalation = (
         "This is the first message. Respond in 3–4 sentences maximum. "
@@ -152,4 +514,17 @@ def build_system_prompt(phase: str, turn_index: int) -> str:
         "scaled to the user's demonstrated engagement level."
     )
     phase_prompt = AGENT_WORKFLOW_PROMPTS.get(phase, "")
-    return f"{AGENT_IDENTITY}\n\n{AGENT_COGNITIVE_PROTOCOL}\n\n{escalation}\n\n{phase_prompt}"
+    context_block = format_company_context_block(company_context)
+    parts = [
+        AGENT_IDENTITY,
+        AGENT_COGNITIVE_PROTOCOL,
+        context_block,
+    ]
+    if company_context and company_context.get("channel_technique_map"):
+        channel_hints = (
+            "CHANNEL TECHNIQUE MAP (hypotheses — confirm against spend-response data):\n"
+            + "\n".join(f"- {h}" for h in company_context["channel_technique_map"])
+        )
+        parts.append(channel_hints)
+    parts.extend([escalation, phase_prompt])
+    return "\n\n".join(p for p in parts if p)

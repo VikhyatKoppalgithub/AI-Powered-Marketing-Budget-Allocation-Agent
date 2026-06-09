@@ -3,7 +3,12 @@ from __future__ import annotations
 
 import pytest
 
-from src.agent_prompts import build_system_prompt
+from src.agent_prompts import (
+    _infer_channel_techniques,
+    build_system_prompt,
+    extract_company_context,
+    format_company_context_block,
+)
 from src.guardrails import GuardrailsService
 
 
@@ -144,3 +149,61 @@ def test_build_system_prompt_turn_one():
 def test_build_system_prompt_includes_phase():
     prompt = build_system_prompt("upload_request", 2)
     assert "upload" in prompt.lower() or "zip" in prompt.lower()
+
+
+def test_build_system_prompt_includes_company_context_protocol():
+    prompt = build_system_prompt("upload_request", 2)
+    assert "COMPANY & AUDIENCE CONTEXT" in prompt
+    assert "target customer" in prompt.lower()
+
+
+def test_build_system_prompt_includes_marketing_techniques():
+    prompt = build_system_prompt("analysis", 2)
+    assert "MARKETING TECHNIQUE" in prompt
+    assert "prospecting" in prompt.lower()
+    assert "funnel" in prompt.lower()
+
+
+def test_extract_company_context_from_dataframe(sample_mmm_df):
+    ctx = extract_company_context(
+        cleaned_df=sample_mmm_df,
+        confirmed_target="ALL_PURCHASES",
+        confirmed_budget=50_000,
+        company_profile={
+            "target_customer": "Online shoppers aged 25-44",
+            "industry": "Retail",
+        },
+    )
+    assert ctx["optimization_target"] == "ALL_PURCHASES"
+    assert ctx["target_customer"] == "Online shoppers aged 25-44"
+    assert ctx["industry_vertical"] == "Retail"
+    assert "purchase volume" in (ctx["optimization_target_meaning"] or "")
+
+
+def test_format_company_context_block_lists_missing_gaps():
+    block = format_company_context_block(
+        extract_company_context(confirmed_target="ALL_PURCHASES")
+    )
+    assert "Context gaps" in block
+    assert "target customer" in block.lower()
+
+
+def test_infer_channel_techniques_maps_known_channels():
+    hints = _infer_channel_techniques(
+        ["google_paid_search", "meta_facebook", "google_shopping"]
+    )
+    assert len(hints) == 3
+    assert any("search" in h.lower() for h in hints)
+    assert any("meta_facebook" in h for h in hints)
+
+
+def test_build_system_prompt_injects_company_block(sample_mmm_df):
+    ctx = extract_company_context(
+        cleaned_df=sample_mmm_df,
+        company_profile={"target_customer": "SMB finance teams", "industry": "B2B SaaS"},
+        confirmed_target="ALL_PURCHASES",
+    )
+    prompt = build_system_prompt("analysis", 2, company_context=ctx)
+    assert "COMPANY CONTEXT" in prompt
+    assert "SMB finance teams" in prompt
+    assert "B2B SaaS" in prompt

@@ -25,6 +25,9 @@ from src.data_prep import load_config
 
 logger = logging.getLogger(__name__)
 
+# Cap scatter points sent to Plotly — full-row charts freeze Streamlit in the browser.
+CHART_SAMPLE_SIZE = 2000
+
 TARGET_PRIORITY = [
     "y",
     "ALL_PURCHASES",
@@ -67,6 +70,20 @@ def _resolve_target(df: pd.DataFrame) -> str:
         if "SPEND" not in col.upper() and df[col].notna().mean() > 0.5:
             return col
     raise ValueError("No target column found in dataset.")
+
+
+
+def _sample_for_chart(df: pd.DataFrame, n: int = CHART_SAMPLE_SIZE) -> pd.DataFrame:
+    """Random subsample for visualization; statistics still use the full frame."""
+    if len(df) <= n:
+        return df
+    return df.sample(n=n, random_state=42)
+
+
+def strip_stage_charts(result: BackwardAnalysisResult) -> None:
+    """Drop Plotly figures from session state after confirm to speed reruns."""
+    for stage in result.stages:
+        stage.chart = None
 
 
 def stage_1_outcome_identification(df: pd.DataFrame) -> AnalysisStage:
@@ -162,7 +179,7 @@ def stage_3_spend_response_relationship(
         fig = make_subplots(rows=(len(cols) + 1) // 2, cols=2, subplot_titles=cols)
         for i, ch in enumerate(cols):
             row, col = i // 2 + 1, i % 2 + 1
-            sub = df[[ch, target]].dropna()
+            sub = _sample_for_chart(df[[ch, target]].dropna())
             fig.add_trace(
                 go.Scatter(x=sub[ch], y=sub[target], mode="markers", name=ch),
                 row=row,
@@ -198,12 +215,12 @@ def stage_4_saturation_check(
     concave_count = 0
 
     for i, ch in enumerate(cols):
-        sub = df[[ch, target]].dropna()
-        sub = sub[sub[ch] > 0]
-        if len(sub) < 10:
+        sub_full = df[[ch, target]].dropna()
+        sub_full = sub_full[sub_full[ch] > 0]
+        if len(sub_full) < 10:
             continue
-        x = np.log1p(sub[ch].values)
-        y = sub[target].values
+        x = np.log1p(sub_full[ch].values)
+        y = sub_full[target].values
         coef = np.polyfit(x, y, 2)
         concave = coef[0] < 0
         if concave:
@@ -211,6 +228,7 @@ def stage_4_saturation_check(
         x_line = np.linspace(x.min(), x.max(), 50)
         y_line = np.polyval(coef, x_line)
         row, col = i // 2 + 1, i % 2 + 1
+        sub = _sample_for_chart(sub_full)
         fig.add_trace(go.Scatter(x=sub[ch], y=sub[target], mode="markers", name=ch), row=row, col=col)
         fig.add_trace(
             go.Scatter(x=np.expm1(x_line), y=y_line, mode="lines", name=f"{ch} fit"),

@@ -4,7 +4,11 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from src.backward_analysis import run_backward_analysis, stage_1_outcome_identification
+from src.backward_analysis import (
+    CHART_SAMPLE_SIZE,
+    run_backward_analysis,
+    stage_1_outcome_identification,
+)
 
 
 def test_backward_analysis_returns_7_stages(cleaned_df):
@@ -47,3 +51,20 @@ def test_run_backward_analysis_completes_on_sample_data(cleaned_df):
     result = run_backward_analysis(cleaned_df)
     assert result.target_column
     assert result.stages[-1].stage_id == "user_confirmation"
+
+
+def test_scatter_charts_are_subsampled_not_full_dataset(cleaned_df):
+    """Stage 3/4 must not embed every row — that freezes Streamlit."""
+    result = run_backward_analysis(cleaned_df)
+    max_pts_per_chart = CHART_SAMPLE_SIZE * 4  # up to 4 channel subplots
+    for stage in result.stages:
+        if stage.chart is None:
+            continue
+        pts = sum(
+            len(tr.x)
+            for tr in stage.chart.data
+            if hasattr(tr, "x") and tr.x is not None
+        )
+        assert pts <= max_pts_per_chart, (
+            f"{stage.stage_id} has {pts} points; cap is {max_pts_per_chart}"
+        )
