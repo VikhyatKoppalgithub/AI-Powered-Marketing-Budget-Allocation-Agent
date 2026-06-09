@@ -18,10 +18,13 @@ def test_stage_1_identifies_target_column(cleaned_df):
     assert "y" in stage.finding or "ALL_PURCHASES" in stage.finding
 
 
-def test_stage_2_drops_sparse_channels(cleaned_df):
+def test_stage_2_lists_config_modeled_and_dropped_channels(cleaned_df):
     result = run_backward_analysis(cleaned_df)
     s2 = result.stages[1]
     assert s2.stage_id == "channel_detection"
+    assert "Google Paid Search" in s2.finding or "google_paid_search" in s2.finding
+    assert "TikTok" in s2.finding or "tiktok" in s2.finding.lower()
+    assert len(result.spend_columns) == 5
 
 
 def test_stage_5_objective_function_text_not_empty(cleaned_df):

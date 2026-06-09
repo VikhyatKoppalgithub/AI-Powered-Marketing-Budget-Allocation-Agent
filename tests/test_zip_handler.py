@@ -95,9 +95,10 @@ def test_auto_detect_schema_finds_spend_columns(sample_mmm_df):
 
 def test_auto_detect_schema_flags_sparse_channels(sample_mmm_df):
     profile = auto_detect_schema(sample_mmm_df, "data.csv")
-    assert any("tiktok" in ch or "display" in ch for ch in profile.dropped_channels) or len(
-        profile.dropped_channels
-    ) >= 0
+    assert "tiktok" in profile.dropped_channels
+    assert "google_display" in profile.dropped_channels
+    assert "meta_instagram" in profile.detected_channels
+    assert "meta_instagram" not in profile.dropped_channels
 
 
 def test_auto_detect_schema_detects_date_column(sample_mmm_df):

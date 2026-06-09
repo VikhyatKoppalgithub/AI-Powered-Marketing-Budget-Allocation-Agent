@@ -364,16 +364,18 @@ def generate_eda_report(df: pd.DataFrame, config: dict | None = None) -> dict:
     else:
         target_over_time = go.Figure()
 
+    from src.channel_policy import display_name
+
     coverage = {}
     for ch in modeled:
         col = column_map.get(ch, ch)
         if col in df.columns:
-            coverage[ch] = 1.0 - df[col].isna().mean()
+            coverage[display_name(ch)] = 1.0 - df[col].isna().mean()
     channel_coverage = px.bar(
         x=list(coverage.keys()),
         y=list(coverage.values()),
         labels={"x": "channel", "y": "non_null_pct"},
-        title="Channel coverage (non-null %)",
+        title="Modeled channel coverage (non-null %)",
     )
 
     corr_cols = [c for c in plot_cols + ([target_col] if target_col in df.columns else []) if c in df.columns]

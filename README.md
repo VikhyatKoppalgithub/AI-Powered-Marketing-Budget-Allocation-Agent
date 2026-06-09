@@ -13,7 +13,7 @@ Marketing teams spread budget across channels (Google, Meta, etc.) without knowi
 - **Python** 3.11+
 - **Data:** pandas, numpy, scipy, scikit-learn
 - **UI:** Streamlit, Plotly
-- **LLM:** Google Gemini (`google-generativeai`) — placeholder in chat until `agent.py` is wired
+- **LLM:** Anthropic Claude (`anthropic`) — chat via `src/agent.py` when `ANTHROPIC_API_KEY` is set
 - **Config:** PyYAML, python-dotenv
 - **Testing:** pytest, pytest-cov
 
@@ -66,7 +66,7 @@ AI-Powered-Marketing-Budget-Allocation-Agent/
 git clone <repo-url>
 cd AI-Powered-Marketing-Budget-Allocation-Agent
 pip install -r requirements.txt
-cp .env.example .env    # add GEMINI_API_KEY when using the agent
+cp .env.example .env    # add ANTHROPIC_API_KEY for Claude chat
 streamlit run app/app.py
 ```
 

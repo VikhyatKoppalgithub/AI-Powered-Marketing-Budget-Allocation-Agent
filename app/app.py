@@ -13,6 +13,7 @@ if str(ROOT) not in sys.path:
 
 import streamlit as st
 
+from src.agent import run_agent
 from src.agent_prompts import build_system_prompt
 from src.guardrails import GuardrailsService
 
@@ -43,7 +44,7 @@ if "guardrails" not in st.session_state:
 
 st.title("MMM Budget Allocation Agent")
 st.caption("MGMT 590-037 · AI-Enhanced Optimization · Purdue University · Summer 2026")
-st.caption("Marketing Mix Modeling + Nonlinear Budget Optimization · Powered by Gemini 1.5 Pro")
+st.caption("Marketing Mix Modeling + Nonlinear Budget Optimization · Powered by Claude")
 
 with st.sidebar:
     st.header("Workflow progress")
@@ -99,16 +100,13 @@ if prompt := st.chat_input("Ask me about your marketing data..."):
             turn_index=st.session_state.turn_index,
         )
 
-        # TODO (Piyush): replace this placeholder with Gemini call via agent.py
-        _ = system_prompt
-        placeholder_response = (
-            f"[Agent placeholder — Phase: {st.session_state.phase}, "
-            f"Turn: {st.session_state.turn_index}]\n\n"
-            "Piyush will wire the Gemini call here. "
-            "Guardrails and system prompt are ready."
+        assistant_response = run_agent(
+            user_message=gr.sanitized,
+            system_prompt=system_prompt,
+            conversation_history=st.session_state.conversation_history,
         )
 
-        clean_response = st.session_state.guardrails.apply_output_guardrails(placeholder_response)
+        clean_response = st.session_state.guardrails.apply_output_guardrails(assistant_response)
 
         with st.chat_message("assistant"):
             st.markdown(clean_response)

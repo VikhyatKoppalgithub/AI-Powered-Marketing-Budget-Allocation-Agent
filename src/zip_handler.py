@@ -12,6 +12,12 @@ from pathlib import Path
 
 import pandas as pd
 
+from src.channel_policy import (
+    DROPPED_CHANNEL_REASONS,
+    classify_channels,
+    display_name,
+)
+
 logger = logging.getLogger(__name__)
 
 TARGET_CANDIDATE_NAMES = {
@@ -164,15 +170,7 @@ def auto_detect_schema(
 
     null_summary = {c: _pct_null(df[c]) for c in columns}
 
-    detected_channels: list[str] = []
-    dropped_channels: list[str] = []
-    for col in spend_columns:
-        pct = null_summary.get(col, 1.0)
-        channel_name = col.replace("_SPEND", "").lower()
-        if pct >= 0.90:
-            dropped_channels.append(channel_name)
-        else:
-            detected_channels.append(channel_name)
+    detected_channels, dropped_channels, _ = classify_channels(df)
 
     ts_col = _detect_timeseries_col(columns)
     date_col = _detect_date_col(columns, df)
@@ -225,7 +223,10 @@ def render_schema_confirmation(profile: SchemaProfile) -> dict:
         )
 
     channels_dropped = [
-        {"channel": ch, "reason": ">=90% null — excluded from modeling"}
+        {
+            "channel": display_name(ch),
+            "reason": DROPPED_CHANNEL_REASONS.get(ch, "too sparse — excluded from model"),
+        }
         for ch in profile.dropped_channels
     ]
 
@@ -247,7 +248,7 @@ def render_schema_confirmation(profile: SchemaProfile) -> dict:
     return {
         "summary": summary,
         "columns_table": columns_table,
-        "channels_to_model": profile.detected_channels,
+        "channels_to_model": [display_name(ch) for ch in profile.detected_channels],
         "channels_dropped": channels_dropped,
         "warnings": warnings,
         "confirmation_prompt": (
