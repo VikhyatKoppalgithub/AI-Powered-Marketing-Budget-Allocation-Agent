@@ -26,9 +26,9 @@ AI-Powered-Marketing-Budget-Allocation-Agent/
 │   └── pages/
 │       ├── 1_upload_confirm.py
 │       ├── 2_backward_analysis.py
-│       ├── 3_allocation.py          (stub)
-│       ├── 4_curves.py              (stub)
-│       └── 5_scenarios.py           (stub)
+│       ├── 3_allocation.py
+│       ├── 4_curves.py
+│       └── 5_scenarios.py
 ├── config.yaml
 ├── data/raw/                        (gitignored uploads)
 ├── data/processed/                  (gitignored outputs)
@@ -50,9 +50,9 @@ AI-Powered-Marketing-Budget-Allocation-Agent/
 │   ├── agent_prompts.py
 │   ├── mmm_model.py
 │   ├── optimizer.py
-│   ├── baseline.py                  (stub)
+│   ├── baseline.py
 │   ├── agent.py
-│   └── explainer.py                 (stub)
+│   └── explainer.py
 ├── tests/
 ├── requirements.txt
 ├── .env.example
@@ -92,7 +92,7 @@ Expected: Ana + optimizer tests pass; remaining stub tests skipped. Coverage tar
 | Streamlit (upload → analysis → optimize → results) | Ana + Meghna | Complete |
 | mmm_model | Gregory | Complete |
 | optimizer | Meghna | Complete |
-| baseline | Meghna | Not Started |
+| baseline | Meghna | Complete |
 | agent (Claude) | Piyush | Complete |
 | explainer + viz pages | Vikhyat | Complete |
 

@@ -1,5 +1,77 @@
 # Development Log
 
+## 2026-06-09 — Implement baseline lift (historical + equal)
+
+**Branch:** feature/optimizer  
+**Owner:** Meghna Advani  
+**Session goal:** Populate `baseline_allocation`, `baseline_conversions`, and `lift_pct` on OptimResult for Page 3.
+
+**What was built:**
+
+- `src/baseline.py`: historical proportional baseline, equal split, `compute_lift`, `apply_baseline_to_result`, `run_all_baselines`
+- `optimization_pipeline.py`: attaches baseline after `solve()` using train split
+- Page 3 backfills baseline for older session results; pages pass `train_df`
+- `tests/test_baseline.py`: 7 tests (removed skip marker)
+
+**How to test it:**
+
+```bash
+pytest tests/test_baseline.py tests/test_optimization_pipeline.py -v
+streamlit run app/app.py  # Step 2 confirm → Step 3 shows non-zero lift
+```
+
+## 2026-06-09 — Fix Step 2 freeze (chart subsampling)
+
+**Branch:** feature/optimizer  
+**Owner:** Meghna Advani  
+**Session goal:** Stop Streamlit from freezing after backward analysis on large datasets.
+
+**What was built:**
+
+- `backward_analysis.py`: subsample scatter plots to 2,000 points per channel; `strip_stage_charts()` after confirm
+- `2_backward_analysis.py`: collapse expanders, hide charts post-confirm, `st.status` during MMM + optimizer
+
+**What still needs work:**
+
+- Re-upload or clear session if an old run still has full-size charts cached in memory
+
+**How to test it:**
+
+```bash
+streamlit run app/app.py
+# Step 2 should scroll smoothly; confirm shows status spinner ~15–20s then Step 3 works
+```
+
+## 2026-06-09 — Wire optimizer after backward analysis confirm
+
+**Branch:** feature/optimizer  
+**Owner:** Meghna Advani  
+**Session goal:** Fix dead-end after Step 2 — run MMM fitting and SLSQP when the user confirms backward analysis.
+
+**What was built:**
+
+- `app/pages/2_backward_analysis.py`: confirm button now runs `run_fitting()` → `solve()`, sets `channel_params`, `optim_result`, `optimizer_fn`, and `optimization_complete` in session state
+- `app/app.py`: session defaults for optimizer keys; sidebar labels updated
+- README status table: Streamlit end-to-end flow marked complete
+
+**What still needs work:**
+
+- `baseline.py` still stub — lift metrics on page 3 stay at 0 until implemented
+- Budget label on upload form says “annual” but optimizer uses the raw dollar value
+
+**Integration notes:**
+
+- Pages 3–5 read `st.session_state.optim_result` and `channel_params` — populated on Step 2 confirm
+- `optimizer_fn` wrapper returns dict for Vikhyat’s `run_sensitivity`
+
+**How to test it:**
+
+```bash
+streamlit run app/app.py
+# Complete Step 1 → Step 2 → Confirm and run optimization → View Step 3
+pytest tests/ -v --tb=short
+```
+
 ## 2026-06-06 — Gemini → Claude API migration
 
 **Branch:** main  

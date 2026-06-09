@@ -40,6 +40,9 @@ defaults = {
     "schema_profile": None,
     "backward_analysis_result": None,
     "company_profile": {},
+    "channel_params": None,
+    "optim_result": None,
+    "optimizer_fn": None,
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -58,8 +61,8 @@ with st.sidebar:
         ("upload_request", "1. Upload dataset"),
         ("confirm", "2. Confirm schema"),
         ("analysis", "3. Backward analysis"),
-        ("optimize", "4. Optimize (coming soon)"),
-        ("explore", "5. Explore results (coming soon)"),
+        ("optimize", "4. Optimize"),
+        ("explore", "5. Explore results"),
     ]
     phase_done = {
         "upload_request": st.session_state.upload_complete,

@@ -11,6 +11,13 @@ Depends on session state keys (populated by Meghna's optimizer page):
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 import pandas as pd
 import streamlit as st
 
@@ -20,6 +27,7 @@ from src.explainer import (
     plot_allocation_bar,
     plot_baseline_lift,
 )
+from src.optimization_pipeline import apply_optimization_to_session, run_optimization_pipeline
 
 st.set_page_config(page_title="Allocation", page_icon="📊", layout="wide")
 st.title("📊 Recommended Allocation")
@@ -27,11 +35,51 @@ st.title("📊 Recommended Allocation")
 optim_result = st.session_state.get("optim_result")
 
 if optim_result is None:
-    st.warning(
-        "No optimization result yet. Please complete the upload, confirm the "
-        "backward analysis, and run the optimizer before viewing this page."
+    if not st.session_state.get("schema_confirmed"):
+        st.warning("Complete Step 1 (upload and confirm schema) first.")
+        if st.button("Go to Step 1"):
+            st.switch_page("pages/1_upload_confirm.py")
+        st.stop()
+
+    if not st.session_state.get("backward_analysis_result"):
+        st.warning("Complete Step 2 (backward analysis) first.")
+        if st.button("Go to Step 2"):
+            st.switch_page("pages/2_backward_analysis.py")
+        st.stop()
+
+    if not st.session_state.get("backward_analysis_confirmed"):
+        st.warning(
+            "You have reviewed backward analysis but have not **confirmed** it yet. "
+            "On Step 2, scroll to the bottom and click **Confirm and run optimization**."
+        )
+        if st.button("Go to Step 2"):
+            st.switch_page("pages/2_backward_analysis.py")
+        st.stop()
+
+    analysis = st.session_state.backward_analysis_result
+    st.info(
+        "Backward analysis is confirmed. Running the optimizer now — "
+        "this usually takes 15–20 seconds."
     )
-    st.stop()
+    try:
+        with st.status("Running MMM fit and optimizer…", expanded=True) as status:
+            optim, channel_params, budget = run_optimization_pipeline(
+                confirmed_budget=st.session_state.get("confirmed_budget"),
+                detected_budget=getattr(analysis, "detected_budget", None),
+                channel_params=st.session_state.get("channel_params"),
+                train_df=st.session_state.get("train_df"),
+            )
+            apply_optimization_to_session(st.session_state, optim, channel_params)
+            status.update(label="Optimization complete", state="complete", expanded=False)
+        st.rerun()
+    except Exception as exc:
+        st.error(
+            "Could not run the optimizer. Return to Step 2 and retry, or re-run "
+            f"Step 1 if train/test files are missing.\n\n`{exc}`"
+        )
+        if st.button("Back to Step 2"):
+            st.switch_page("pages/2_backward_analysis.py")
+        st.stop()
 
 
 def _get(obj, attr, default=None):
@@ -40,6 +88,23 @@ def _get(obj, attr, default=None):
     if isinstance(obj, dict):
         return obj.get(attr, default)
     return default
+
+
+# Backfill baseline for sessions optimized before baseline.py was wired
+if optim_result is not None and not _get(optim_result, "baseline_allocation"):
+    train_df = st.session_state.get("train_df")
+    channel_params = st.session_state.get("channel_params")
+    if train_df is not None and channel_params:
+        from src.baseline import apply_baseline_to_result
+        from src.data_prep import load_config
+
+        config = load_config()
+        channels = list(config["channels"]["modeled"])
+        budget = float(_get(optim_result, "total_spent", 0) or sum(_get(optim_result, "allocation", {}).values()))
+        optim_result = apply_baseline_to_result(
+            optim_result, channel_params, channels, budget, train_df, config=config
+        )
+        st.session_state.optim_result = optim_result
 
 
 allocation = _get(optim_result, "allocation", {})
