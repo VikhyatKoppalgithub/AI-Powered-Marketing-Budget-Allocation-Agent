@@ -1,5 +1,33 @@
 # Development Log
 
+## 2026-06-09 — Bayesian Optimization for MMM tuning (Stage 1)
+
+**Branch:** feature/optimizer  
+**Owner:** Meghna Advani  
+**Session goal:** Implement Lecture 7 BO (GP + EI) for MMM hyperparameters without replacing SLSQP allocation.
+
+**What was built:**
+
+- `src/bo_mmm_tuning.py`: GP + EI loop, `evaluate_mmm_hyperparams`, `run_bo_tuning`, `load_bo_params`
+- `mmm_model.py`: `reg_b_weight`, `adstock_decay_overrides`, optional BO output path
+- `config.yaml`: `mmm_tuning` block; `optimization_pipeline` loads BO params when `use_bo_params: true`
+- Tests: `tests/test_bo_mmm_tuning.py`
+- Docs: `optimization_problem_spec.md` §12, `architecture.md`, plan status updated
+
+**What still needs work:**
+
+- Offline BO run on full dataset (~30 refits); set `mmm_tuning.enabled: true` manually
+- Optional notebook `03_bo_mmm_tuning.ipynb` for demo charts
+- `tune_decays: true` uses adstock spend for fit — document if enabled
+
+**How to test it:**
+
+```bash
+pytest tests/test_bo_mmm_tuning.py -v
+# After pipeline: enable mmm_tuning.enabled in config.yaml
+python -m src.bo_mmm_tuning
+```
+
 ## 2026-06-09 — Implement baseline lift (historical + equal)
 
 **Branch:** feature/optimizer  

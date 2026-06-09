@@ -38,7 +38,9 @@ AI-Powered-Marketing-Budget-Allocation-Agent/
 │   ├── optimization.md
 │   ├── backward_analysis.md
 │   ├── agent_design.md
-│   └── setup.md
+│   ├── setup.md
+│   ├── optimization_problem_spec.md
+│   └── bayesian_optimization_plan.md
 ├── notebooks/
 │   ├── 01_eda.ipynb
 │   └── 02_preprocessing.ipynb
@@ -51,6 +53,8 @@ AI-Powered-Marketing-Budget-Allocation-Agent/
 │   ├── mmm_model.py
 │   ├── optimizer.py
 │   ├── baseline.py
+│   ├── bo_mmm_tuning.py
+│   ├── optimization_pipeline.py
 │   ├── agent.py
 │   └── explainer.py
 ├── tests/
@@ -70,7 +74,7 @@ cp .env.example .env    # add ANTHROPIC_API_KEY when using the agent
 streamlit run app/app.py
 ```
 
-See [docs/setup.md](docs/setup.md) for full setup steps.
+See [docs/setup.md](docs/setup.md) for full setup steps. BO details: [docs/bayesian_optimization_plan.md](docs/bayesian_optimization_plan.md).
 
 ## How to run tests
 
@@ -93,6 +97,7 @@ Expected: Ana + optimizer tests pass; remaining stub tests skipped. Coverage tar
 | mmm_model | Gregory | Complete |
 | optimizer | Meghna | Complete |
 | baseline | Meghna | Complete |
+| bo_mmm_tuning | Meghna | Complete |
 | agent (Claude) | Piyush | Complete |
 | explainer + viz pages | Vikhyat | Complete |
 
@@ -102,7 +107,7 @@ Expected: Ana + optimizer tests pass; remaining stub tests skipped. Coverage tar
 |--------|------|-------------|
 | Ana Valderrama | Data engineering + agent skeleton | `data_prep`, `zip_handler`, `backward_analysis`, `guardrails`, `agent_prompts`, `app/app.py`, `pages/1_*`, `pages/2_*` |
 | Gregory Sapp | MMM / prediction | `mmm_model.py` |
-| Meghna Advani | Optimization | `optimizer.py`, `baseline.py` |
+| Meghna Advani | Optimization | `optimizer.py`, `baseline.py`, `bo_mmm_tuning.py` |
 | Piyush Sandhikar | AI agent | `agent.py` |
 | Vikhyat Koppal | Viz / sensitivity | `explainer.py`, `pages/3_*`–`5_*` |
 

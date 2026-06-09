@@ -328,6 +328,31 @@ python -c "from src.backward_analysis import run_backward_analysis; ..."
 
 ---
 
+## 12. Bayesian optimization layer (Stage 1 — MMM tuning)
+
+> **Detail:** [bayesian_optimization_plan.md](bayesian_optimization_plan.md)  
+> **Implementation:** `src/bo_mmm_tuning.py`
+
+Lecture 7 BO applies to **expensive MMM refits**, not budget allocation:
+
+| Stage | Method | Module |
+|-------|--------|--------|
+| Tune MMM hyperparameters (holdout R²) | GP + Expected Improvement | `bo_mmm_tuning.py` |
+| Allocate budget given curves | SLSQP + KKT | `optimizer.py` |
+
+**Default search (config):** `reg_b_weight` only (`tune_decays: false`) so fitted curves stay on **raw USD** spend — aligned with the optimizer.
+
+**Offline run:**
+
+```bash
+# After pipeline produces mmm_train.csv + mmm_test.csv
+# Set mmm_tuning.enabled: true in config.yaml, then:
+python -m src.bo_mmm_tuning
+# Set mmm_tuning.use_bo_params: true to load channel_params_bo.json in the app
+```
+
+---
+
 ## 11. Document map
 
 | Question | Read this |
@@ -336,7 +361,7 @@ python -c "from src.backward_analysis import run_backward_analysis; ..."
 | Cleaning before optimization | [data_pipeline.md](data_pipeline.md) |
 | Stage 7 confirmation gate | [backward_analysis.md](backward_analysis.md) |
 | Repo / LLM context | [../PROJECT_HANDOFF.md](../PROJECT_HANDOFF.md) |
-| Legacy link | [optimization.md](optimization.md) → redirects here |
+| BO plan (team) | [bayesian_optimization_plan.md](bayesian_optimization_plan.md) |
 
 ---
 
