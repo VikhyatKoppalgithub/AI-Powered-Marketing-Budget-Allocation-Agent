@@ -94,7 +94,7 @@ Expected: Ana + optimizer tests pass; remaining stub tests skipped. Coverage tar
 | optimizer | Meghna | Complete |
 | baseline | Meghna | Not Started |
 | agent (Gemini) | Piyush | Not Started |
-| explainer + viz pages | Vikhyat | Not Started |
+| explainer + viz pages | Vikhyat | Complete|
 
 ## Team roles
 
