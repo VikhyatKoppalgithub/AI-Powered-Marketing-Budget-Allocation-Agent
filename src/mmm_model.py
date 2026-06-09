@@ -65,14 +65,24 @@ def saturation_curve(spend, a: float, b: float):
 # --------------------------------------------------------------------------- #
 # Aggregation helpers
 # --------------------------------------------------------------------------- #
-def _channel_spend_columns(config: dict, channels: list[str]) -> dict[str, str]:
-    """Map each modeled channel -> its raw spend column via config['column_map'].
-
-    We deliberately use RAW spend columns (e.g. GOOGLE_PAID_SEARCH_SPEND), not the
-    ``*_adstock`` columns: the optimizer allocates real USD, so x must be real USD.
-    """
+def _resolve_spend_columns(
+    df: pd.DataFrame,
+    config: dict,
+    channels: list[str],
+    spend_mode: str,
+) -> dict[str, str]:
+    """Pick raw or adstock column per channel based on availability."""
     column_map = config.get("column_map", {})
-    return {ch: column_map.get(ch, ch.upper()) for ch in channels}
+    out: dict[str, str] = {}
+    for ch in channels:
+        if spend_mode == "adstock":
+            adstock_col = f"{ch}_adstock"
+            if adstock_col in df.columns:
+                out[ch] = adstock_col
+                continue
+        raw = column_map.get(ch, ch.upper())
+        out[ch] = raw
+    return out
 
 
 def aggregate_portfolio(
@@ -81,6 +91,7 @@ def aggregate_portfolio(
     channels: list[str],
     target: str = "y",
     freq: str = DEFAULT_FREQ,
+    spend_mode: str = "raw",
 ) -> pd.DataFrame:
     """Collapse the per-timeseries train frame into ONE portfolio time series.
 
@@ -94,7 +105,7 @@ def aggregate_portfolio(
     KEY, not the CSV column) plus the target column.
     """
     date_col = config["data"]["date_column"]
-    spend_cols = _channel_spend_columns(config, channels)
+    spend_cols = _resolve_spend_columns(df, config, channels, spend_mode)
 
     work = df.copy()
     work[date_col] = pd.to_datetime(work[date_col], errors="coerce")
@@ -185,6 +196,8 @@ def fit_all_channels(
     freq: str = DEFAULT_FREQ,
     fit_baseline: bool = True,
     return_baseline: bool = False,
+    reg_b_weight: float | None = None,
+    spend_mode: str = "raw",
 ):
     """Fit all channels JOINTLY and return {channel: {"a", "b"}}.
 
@@ -217,7 +230,9 @@ def fit_all_channels(
     precise, when channel spends move together.
     """
     config = config or load_config()
-    agg = aggregate_portfolio(train_df, config, channels, target=target, freq=freq)
+    agg = aggregate_portfolio(
+        train_df, config, channels, target=target, freq=freq, spend_mode=spend_mode
+    )
     X = agg[channels].to_numpy(dtype="float64")        # (T, n)
     y = agg["y"].to_numpy(dtype="float64")             # (T,)
     n = len(channels)
@@ -227,7 +242,7 @@ def fit_all_channels(
     Xs = X / x_scale
 
     y_rms = float(np.sqrt(np.mean(y**2))) or 1.0
-    w_b = REG_B_WEIGHT * y_rms   # log-space ridge weight on scaled b
+    w_b = (reg_b_weight if reg_b_weight is not None else REG_B_WEIGHT) * y_rms
 
     def split(p):
         if fit_baseline:
@@ -323,10 +338,13 @@ def quality_checks(
     channels: list[str],
     config: dict | None = None,
     freq: str = DEFAULT_FREQ,
+    spend_mode: str = "raw",
 ) -> dict:
     """Run Meghna's pre-handoff checks. Returns a report dict (also logs)."""
     config = config or load_config()
-    agg = aggregate_portfolio(train_df, config, channels, target="y", freq=freq)
+    agg = aggregate_portfolio(
+        train_df, config, channels, target="y", freq=freq, spend_mode=spend_mode
+    )
     report: dict = {"channels": {}, "flags": [], "all_positive": True, "monotonic": True}
 
     for ch in channels:
@@ -384,6 +402,7 @@ def evaluate_on_test(
     params: dict,
     config: dict | None = None,
     freq: str = DEFAULT_FREQ,
+    spend_mode: str = "raw",
 ) -> dict:
     """Evaluate fitted model on the holdout test split (portfolio, monthly).
 
@@ -392,7 +411,9 @@ def evaluate_on_test(
     """
     config = config or load_config()
     channels = list(params.keys())
-    agg = aggregate_portfolio(test_df, config, channels, target="y", freq=freq)
+    agg = aggregate_portfolio(
+        test_df, config, channels, target="y", freq=freq, spend_mode=spend_mode
+    )
     if len(agg) == 0:
         return {"n": 0, "note": "no test periods after aggregation"}
 
@@ -422,13 +443,21 @@ def evaluate_on_test(
 # --------------------------------------------------------------------------- #
 # Orchestration
 # --------------------------------------------------------------------------- #
-def run_fitting(config_path: str = "config.yaml", freq: str = DEFAULT_FREQ) -> dict:
-    """Run the full MMM fitting pipeline and write channel_params.json.
+def run_fitting(
+    config_path: str = "config.yaml",
+    freq: str = DEFAULT_FREQ,
+    *,
+    reg_b_weight: float | None = None,
+    adstock_decay_overrides: dict[str, float] | None = None,
+    params_output_path: str | None = None,
+) -> dict:
+    """Run the full MMM fitting pipeline and write channel_params JSON.
 
-    Reads the TRAIN split only (Ana's data/processed/mmm_train.csv), aggregates
-    to portfolio level at ``freq`` (monthly by default), jointly fits the five
-    modeled channels, writes the JSON, and runs quality checks. Returns a dict
-    with params, the output path, the quality report and (if present) test metrics.
+    Optional BO hooks:
+    - ``reg_b_weight``: ridge on log-scaled b in joint fit
+    - ``adstock_decay_overrides``: re-apply adstock on train frame before fit
+      (uses adstock spend columns when overrides are provided)
+    - ``params_output_path``: override default JSON path (e.g. channel_params_bo.json)
     """
     config = load_config(config_path)
     channels = config["channels"]["modeled"]
@@ -437,11 +466,31 @@ def run_fitting(config_path: str = "config.yaml", freq: str = DEFAULT_FREQ) -> d
     train_path = resolve_project_path(config["data"]["train_path"])
     train_df = pd.read_csv(train_path)
 
+    spend_mode = "raw"
+    if adstock_decay_overrides:
+        from src.data_prep import apply_adstock
+
+        decay_rates = {**config["adstock"]["decay_rates"], **adstock_decay_overrides}
+        train_df = apply_adstock(train_df.copy(), decay_rates, config)
+        spend_mode = "adstock"
+
     params, baseline = fit_all_channels(
-        train_df, channels, target=target, config=config, freq=freq, return_baseline=True
+        train_df,
+        channels,
+        target=target,
+        config=config,
+        freq=freq,
+        return_baseline=True,
+        reg_b_weight=reg_b_weight,
+        spend_mode=spend_mode,
     )
-    out_path = export_params(params, config["data"]["params_path"])
-    report = quality_checks(params, train_df, channels, config=config, freq=freq)
+    out_path = export_params(
+        params,
+        params_output_path or config["data"]["params_path"],
+    )
+    report = quality_checks(
+        params, train_df, channels, config=config, freq=freq, spend_mode=spend_mode
+    )
 
     result = {
         "params": params,
@@ -449,13 +498,22 @@ def run_fitting(config_path: str = "config.yaml", freq: str = DEFAULT_FREQ) -> d
         "freq": freq,
         "quality_report": report,
         "baseline_monthly": baseline,
+        "reg_b_weight": reg_b_weight if reg_b_weight is not None else REG_B_WEIGHT,
+        "spend_mode": spend_mode,
     }
 
     test_path = resolve_project_path(config["data"]["test_path"])
     if Path(test_path).exists():
         try:
             test_df = pd.read_csv(test_path)
-            result["test_metrics"] = evaluate_on_test(test_df, params, config=config, freq=freq)
+            if adstock_decay_overrides:
+                from src.data_prep import apply_adstock
+
+                decay_rates = {**config["adstock"]["decay_rates"], **adstock_decay_overrides}
+                test_df = apply_adstock(test_df.copy(), decay_rates, config)
+            result["test_metrics"] = evaluate_on_test(
+                test_df, params, config=config, freq=freq, spend_mode=spend_mode
+            )
         except Exception as exc:  # pragma: no cover
             logger.warning("evaluate_on_test skipped: %s", exc)
     return result

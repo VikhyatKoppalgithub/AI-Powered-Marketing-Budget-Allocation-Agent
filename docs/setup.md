@@ -28,6 +28,14 @@ Optional: override the default model with `ANTHROPIC_MODEL=claude-sonnet-4-20250
 | `ANTHROPIC_API_KEY` | For agent + explainer | Anthropic API key |
 | `ANTHROPIC_MODEL` | No | Claude model name (defaults to `config.yaml`) |
 
+## Optional: Bayesian Optimization for MMM tuning (offline)
+
+See [bayesian_optimization_plan.md](bayesian_optimization_plan.md). After the data pipeline produces train/test CSVs:
+
+1. Set `mmm_tuning.enabled: true` in `config.yaml`
+2. Run `python -m src.bo_mmm_tuning` (~30 MMM refits)
+3. Set `mmm_tuning.use_bo_params: true` to load `channel_params_bo.json` in the app
+
 ## Running tests
 
 ```bash

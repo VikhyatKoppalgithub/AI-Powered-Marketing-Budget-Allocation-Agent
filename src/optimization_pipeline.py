@@ -10,6 +10,7 @@ from typing import Any
 import pandas as pd
 
 from src.baseline import apply_baseline_to_result
+from src.bo_mmm_tuning import load_bo_params
 from src.data_prep import load_config, resolve_project_path
 from src.mmm_model import run_fitting
 from src.optimizer import OptimResult, solve
@@ -32,11 +33,15 @@ def run_optimization_pipeline(
     train_df: pd.DataFrame | None = None,
 ) -> tuple[OptimResult, dict[str, Any], float]:
     """Fit MMM (if needed), run SLSQP, attach baseline lift, return result."""
-    if not channel_params:
-        fitting = run_fitting()
-        channel_params = fitting["params"]
-
     config = load_config()
+    if not channel_params:
+        bo_params = load_bo_params(config)
+        if bo_params is not None:
+            channel_params = bo_params
+        else:
+            fitting = run_fitting()
+            channel_params = fitting["params"]
+
     channels = list(config["channels"]["modeled"])
     budget = float(
         confirmed_budget

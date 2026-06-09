@@ -129,3 +129,21 @@ optimization:
     google_pmax: null
     meta_facebook: null
     meta_instagram: null
+
+# Stage 1 — Bayesian Optimization for MMM hyperparameters (Lecture 7).
+# Stage 2 — SLSQP budget allocation uses optimizer.py (unchanged).
+mmm_tuning:
+  enabled: false
+  use_bo_params: false
+  n_init: 5
+  n_iter: 25
+  xi: 0.01
+  n_candidates: 5000
+  objective: test_r2
+  quality_penalty_per_flag: 0.01
+  tune_decays: false
+  output_path: "data/processed/channel_params_bo.json"
+  metadata_path: "data/processed/channel_params_bo_meta.json"
+  search_space:
+    reg_b_weight: [0.01, 0.2]
+    adstock_decay: [0.05, 0.6]
