@@ -62,3 +62,6 @@ flowchart TB
 | `confirmed_target` / `confirmed_budget` | User form inputs |
 | `optim_result` / `channel_params` | Optimizer + MMM outputs for pages 3–5 |
 | `optimizer_fn` | Sensitivity wrapper for page 5 |
+| `activation_thresholds` | Per-channel κ (USD/week) from `config.yaml` for page 6 |
+| `optim_result_B` / `optim_result_C` | Models B/C (pending Meghna Day 1) for page 6 |
+| `channel_params_C` / `adstock_lambdas` | Model C curves + decay (pending Gregory) |

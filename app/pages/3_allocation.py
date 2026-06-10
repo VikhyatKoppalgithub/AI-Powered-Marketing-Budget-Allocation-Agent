@@ -63,13 +63,13 @@ if optim_result is None:
     )
     try:
         with st.status("Running MMM fit and optimizer…", expanded=True) as status:
-            optim, channel_params, budget = run_optimization_pipeline(
+            optim, channel_params, budget, model_b = run_optimization_pipeline(
                 confirmed_budget=st.session_state.get("confirmed_budget"),
                 detected_budget=getattr(analysis, "detected_budget", None),
                 channel_params=st.session_state.get("channel_params"),
                 train_df=st.session_state.get("train_df"),
             )
-            apply_optimization_to_session(st.session_state, optim, channel_params)
+            apply_optimization_to_session(st.session_state, optim, channel_params, model_b=model_b)
             status.update(label="Optimization complete", state="complete", expanded=False)
         st.rerun()
     except Exception as exc:
