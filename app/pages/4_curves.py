@@ -10,12 +10,18 @@ Depends on session state key:
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 import pandas as pd
 import streamlit as st
 
 from src.explainer import plot_saturation_curves
 
-st.set_page_config(page_title="Saturation Curves", page_icon="📈", layout="wide")
 st.title("📈 Channel Saturation Curves")
 
 st.markdown(
@@ -23,6 +29,21 @@ st.markdown(
     "spend. The flattening at higher spend levels reflects **diminishing "
     "returns** — the foundation of why allocation matters."
 )
+
+with st.expander("🟢 In plain English — what is this page?"):
+    st.markdown(
+        """
+Each line shows what happens to your results as you spend **more** on a channel.
+
+The lines bend and flatten because of **diminishing returns** — the first
+dollars on a channel do a lot of work, later dollars do less.
+
+- A line that **flattens early** saturates quickly → don't overspend it.
+- A line that **keeps rising** can productively absorb more budget.
+
+The optimizer reads these shapes to decide where each dollar does the most good.
+"""
+    )
 
 channel_params = st.session_state.get("channel_params")
 

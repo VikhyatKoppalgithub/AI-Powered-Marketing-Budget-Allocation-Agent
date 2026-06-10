@@ -9,7 +9,7 @@
 
 ## Purpose of this document
 
-This plan proposes **where and how** to incorporate **Bayesian Optimization (BO)** from MGMT 590 Lecture 7 into our MMM Budget Allocation Agent — **without replacing** the existing SLSQP budget allocator.
+This plan proposes **where and how** to incorporate **Bayesian Optimization (BO)** into our MMM Budget Allocation Agent — **without replacing** the existing SLSQP budget allocator.
 
 **Please review before implementation.** Owners and scope below are suggestions; adjust in team sync.
 

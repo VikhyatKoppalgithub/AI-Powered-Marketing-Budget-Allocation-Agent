@@ -5,7 +5,9 @@ from src.data_prep import load_config
 from src.optimization_pipeline import (
     apply_optimization_to_session,
     load_activation_thresholds,
+    load_model_c_inputs,
     optimizer_fn_for_sensitivity,
+    run_model_c,
     run_optimization_pipeline,
 )
 from src.optimizer import OptimResult
@@ -19,7 +21,7 @@ def test_run_optimization_pipeline_returns_result():
         "meta_facebook": {"a": 70.0, "b": 0.003},
         "meta_instagram": {"a": 60.0, "b": 0.004},
     }
-    optim, out_params, budget, model_b = run_optimization_pipeline(
+    optim, out_params, budget, model_b, model_c = run_optimization_pipeline(
         confirmed_budget=10_000.0,
         channel_params=params,
     )
@@ -90,13 +92,27 @@ def test_run_optimization_pipeline_runs_model_b_with_config():
         "meta_facebook": {"a": 70.0, "b": 0.003},
         "meta_instagram": {"a": 60.0, "b": 0.004},
     }
-    optim, _, budget, model_b = run_optimization_pipeline(
+    optim, _, budget, model_b, model_c = run_optimization_pipeline(
         confirmed_budget=100_000.0,
         channel_params=params,
     )
     assert budget == 100_000.0
     assert model_b is not None
     assert model_b.result.total_spent <= budget + 1e-3
+
+
+def test_run_model_c_solves_at_portfolio_budget():
+    # Greg's Model C inputs live in data/processed; load + solve at a budget that
+    # clears the κ thresholds so several channels can turn ON.
+    config = load_config()
+    channels = list(config["channels"]["modeled"])
+    params_c, lambdas = load_model_c_inputs(config)
+    assert params_c is not None and lambdas is not None
+    assert lambdas["google_paid_search"] == 0.3  # exercises the f(s/(1-λ)) bridge
+
+    model_c = run_model_c(831_000.0, channels, config=config)
+    assert model_c is not None
+    assert model_c.result.total_spent <= 831_000.0 + 1.0
 
 
 def test_apply_optimization_to_session_sets_activation_thresholds():

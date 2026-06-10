@@ -23,6 +23,23 @@ constraints from the data itself.
 """
 )
 
+with st.expander("🟢 In plain English — what is this page?"):
+    st.markdown(
+        """
+Before recommending where to spend, we reverse-engineer your data to make sure
+we're solving the **right** problem. Each stage answers one simple question:
+
+- **What are we trying to grow?** (e.g. purchases)
+- **Which channels actually matter?**
+- **Does spending more really drive results?**
+- **Where do returns start to flatten out?**
+- **What's the total budget limit?**
+
+At the very end you click **Confirm** — and only then does the optimizer run.
+Nothing is decided behind your back.
+"""
+    )
+
 if not st.session_state.get("schema_confirmed"):
     st.warning("Complete Step 1 first.")
     st.stop()
@@ -76,17 +93,19 @@ st.caption(
 
 
 def _execute_optimization():
-    optim, channel_params, budget, model_b = run_optimization_pipeline(
+    optim, channel_params, budget, model_b, model_c = run_optimization_pipeline(
         confirmed_budget=st.session_state.get("confirmed_budget"),
         detected_budget=result.detected_budget,
         channel_params=st.session_state.get("channel_params"),
         train_df=st.session_state.get("train_df"),
     )
-    apply_optimization_to_session(st.session_state, optim, channel_params, model_b=model_b)
+    apply_optimization_to_session(
+        st.session_state, optim, channel_params, model_b=model_b, model_c=model_c
+    )
     return optim, budget
 
 
-if not st.session_state.backward_analysis_confirmed:
+if not st.session_state.get("backward_analysis_confirmed", False):
     if st.button("Confirm and run optimization", type="primary"):
         result.confirmed_by_user = True
         st.session_state.backward_analysis_result = result
