@@ -1,5 +1,31 @@
 # Development Log
 
+## 2026-06-09 — Day 0: weekly MMM pipeline + activation κ in config
+
+**Branch:** feature/optimizer  
+**Owner:** Meghna Advani  
+**Session goal:** Wire stakeholder-mod κ and weekly MMM frequency without changing budget or u_c.
+
+**What was built:**
+
+- `config.yaml`: `mmm.freq: weekly`, `activation.thresholds` (confirmed κ), `optimization.time_unit`
+- `optimization_pipeline.py`: `load_activation_thresholds`, weekly `run_fitting`, session `activation_thresholds`
+- `mmm_model.py`: `resolve_mmm_freq()` reads config when freq omitted
+- `app/app.py`: default `activation_thresholds` session key
+- Tests: extended `test_optimization_pipeline.py`, `resolve_mmm_freq` in `test_mmm_model.py`
+
+**What still needs work:**
+
+- `activation.ceilings` (u_c) pending Ana
+- `optimization.default_budget` still placeholder until team locks portfolio B
+- Model B/C solvers (Day 1)
+
+**How to test it:**
+
+```bash
+pytest tests/test_optimization_pipeline.py tests/test_mmm_model.py::test_resolve_mmm_freq_reads_config_default -v
+```
+
 ## 2026-06-09 — Bayesian Optimization for MMM tuning (Stage 1)
 
 **Branch:** feature/optimizer  

@@ -12,8 +12,16 @@ import pandas as pd
 from src.baseline import apply_baseline_to_result
 from src.bo_mmm_tuning import load_bo_params
 from src.data_prep import load_config, resolve_project_path
-from src.mmm_model import run_fitting
+from src.mmm_model import resolve_mmm_freq, run_fitting
 from src.optimizer import OptimResult, solve
+
+
+def load_activation_thresholds(config: dict | None = None) -> dict[str, float]:
+    """Load per-channel activation κ (USD/week) from config for Models B/C."""
+    cfg = config or load_config()
+    raw = (cfg.get("activation") or {}).get("thresholds") or {}
+    channels = list(cfg["channels"]["modeled"])
+    return {ch: float(raw[ch]) for ch in channels if ch in raw}
 
 
 def optimizer_fn_for_sensitivity(params: dict, channels: list[str], budget: float) -> dict:
@@ -34,12 +42,13 @@ def run_optimization_pipeline(
 ) -> tuple[OptimResult, dict[str, Any], float]:
     """Fit MMM (if needed), run SLSQP, attach baseline lift, return result."""
     config = load_config()
+    mmm_freq = resolve_mmm_freq(config)
     if not channel_params:
         bo_params = load_bo_params(config)
         if bo_params is not None:
             channel_params = bo_params
         else:
-            fitting = run_fitting()
+            fitting = run_fitting(freq=mmm_freq)
             channel_params = fitting["params"]
 
     channels = list(config["channels"]["modeled"])
@@ -65,8 +74,10 @@ def run_optimization_pipeline(
 
 def apply_optimization_to_session(session_state: Any, optim: OptimResult, channel_params: dict) -> None:
     """Persist optimizer outputs on Streamlit session_state."""
+    config = load_config()
     session_state.channel_params = channel_params
     session_state.optim_result = optim
     session_state.optimizer_fn = optimizer_fn_for_sensitivity
+    session_state.activation_thresholds = load_activation_thresholds(config)
     session_state.optimization_complete = True
     session_state.phase = "explore"

@@ -30,6 +30,8 @@ Marketing teams need to decide how much to spend on each advertising channel. Gi
 | **Objective function** | **No** | This doc, backward analysis Stage 5 | Not machine-readable in YAML |
 | **Constraints (Σx≤B, x≥0)** | **No** (implicit) | `backward_analysis` Stage 6 | Caps keys exist but are all `null` |
 | **Default budget B** | Yes — `optimization.default_budget: 50000` | — | **Does not match EDA** (~$3.5M/month portfolio); placeholder |
+| **MMM frequency** | Yes — `mmm.freq: weekly` | Greg `run_fitting` | Stakeholder mod; κ in USD/week |
+| **Activation κ** | Yes — `activation.thresholds` | Model B/C (Day 1) | Team-confirmed; `ceilings` TBD |
 | **Solver settings** | Yes — SLSQP, `n_starts`, `tol`, `max_iter` | `src/optimizer.py` stub | OK |
 | **Portfolio vs row-level budget** | **No** | Buggy estimate in Stage 6 | Documented in Section 3 |
 | **Optimizer uses 5 spend cols only** | Implied by `column_map` | Backward analysis lists 12 cols | **Use config modeled list only** |

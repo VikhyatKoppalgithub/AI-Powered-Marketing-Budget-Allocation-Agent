@@ -43,6 +43,7 @@ defaults = {
     "channel_params": None,
     "optim_result": None,
     "optimizer_fn": None,
+    "activation_thresholds": {},
 }
 for k, v in defaults.items():
     if k not in st.session_state:

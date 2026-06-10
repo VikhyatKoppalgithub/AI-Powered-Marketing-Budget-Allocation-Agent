@@ -117,7 +117,23 @@ adstock:
     meta_facebook: 0.4
     meta_instagram: 0.35
 
+# MMM fit frequency — stakeholder mod uses weekly κ (USD/week).
+mmm:
+  freq: weekly
+
+# Task 1 activation thresholds (κ) and ceilings (u_c) for Models B/C.
+# κ confirmed by team; u_c pending Ana (1.5 × max historical weekly spend).
+activation:
+  thresholds:
+    google_paid_search: 18000
+    google_shopping: 15000
+    google_pmax: 18000
+    meta_facebook: 12000
+    meta_instagram: 12000
+  ceilings: null
+
 optimization:
+  time_unit: weekly
   default_budget: 50000
   n_starts: 50
   solver: "SLSQP"
