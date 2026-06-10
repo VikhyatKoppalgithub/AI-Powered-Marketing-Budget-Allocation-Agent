@@ -61,6 +61,35 @@ metadata = {
     "C": {"name": "Adstock + Activation", "thresholds": thresholds, "lambdas": lambdas},
 }
 
+# -----------------------------------------------------------------------------
+# Current parameters caption — surfaces runtime values the agent is honoring
+# Per v3 action plan: config = defaults, session_state = current truth.
+# -----------------------------------------------------------------------------
+budget = st.session_state.get("confirmed_budget") or st.session_state.get(
+    "optim_budget", 50_000
+)
+n_kappa = sum(1 for v in thresholds.values() if v is not None) if thresholds else 0
+n_lambda = sum(1 for v in lambdas.values() if v is not None) if lambdas else 0
+last_param_change = st.session_state.get("last_param_change_at")
+
+caption_parts = [
+    f"**B** = ${budget:,.0f}/week",
+    f"**κ** set on {n_kappa}/5 channels",
+    f"**λ** set on {n_lambda}/5 channels",
+]
+if last_param_change:
+    caption_parts.append(f"_last changed by agent at {last_param_change}_")
+
+st.caption("**Current parameters in effect:** · " + " · ".join(caption_parts))
+
+# Surface a dirty-params banner so the demo audience can see when the agent
+# has updated something but the optimizer hasn't re-run yet.
+if st.session_state.get("params_dirty"):
+    st.warning(
+        "⚠️ Parameters were modified by the agent since the last optimization run. "
+        "Re-solve in progress or click below to refresh."
+    )
+
 if result_A is None:
     st.warning(
         "No Model A result yet — run the base optimizer (Page 3) first. "
