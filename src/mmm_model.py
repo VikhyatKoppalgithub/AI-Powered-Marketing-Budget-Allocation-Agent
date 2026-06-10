@@ -41,7 +41,9 @@ logger = logging.getLogger(__name__)
 
 # Spend is fitted in MONTHLY USD by default. Meghna's budget B is monthly (~$3.5M).
 DEFAULT_FREQ = "monthly"  # "monthly" or "daily"
-_FREQ_RULE = {"monthly": "MS", "daily": "D"}
+_FREQ_RULE = {"monthly": "MS", "weekly": "W", "daily": "D"}
+# Minimum covered days to keep a resampled period (drop partial edge periods).
+_MIN_DAYS = {"monthly": 20, "weekly": 5, "daily": 1}
 
 # Light log-space ridge weight on the (scaled) saturation rate b, as a
 # fraction of RMS target. Breaks flat directions in the joint fit; ~0 bias.
@@ -126,11 +128,12 @@ def aggregate_portfolio(
     rule = _FREQ_RULE[freq]
     agg = daily.resample(rule).sum()
 
-    # Drop partial edge periods (months with little coverage) when monthly so a
-    # half-month doesn't bias a downward. Keep periods with >= 20 covered days.
-    if freq == "monthly":
+    # Drop partial edge periods (a half-month / part-week of coverage would bias
+    # the level downward). Keep periods with at least _MIN_DAYS covered days.
+    min_days = _MIN_DAYS.get(freq, 1)
+    if min_days > 1:
         day_counts = daily.assign(_one=1).resample(rule)["_one"].sum()
-        agg = agg[day_counts >= 20]
+        agg = agg[day_counts >= min_days]
 
     # rename channel spend columns to channel keys
     rename = {raw: ch for ch, raw in spend_cols.items()}
