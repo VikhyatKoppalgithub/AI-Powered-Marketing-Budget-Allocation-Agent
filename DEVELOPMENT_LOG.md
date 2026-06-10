@@ -94,6 +94,27 @@
 
 - λ values are PROVISIONAL (Greg refreshes once D2 scale locked; keys frozen, no rework).
 - Optional: global-optimality cross-check (N random-start full SLSQP vs enumerated winner).
+## 2026-06-10 — Runtime-parameterize kappa in the data layer (v3 plan §2)
+
+**Branch:** feature/data-prep  
+**Owner:** Ana Valderrama  
+**Session goal:** Treat kappa as a startup default that any caller can override at runtime, per the team's config-defaults / session-state-truth agreement.
+
+**What was built:**
+
+- `src/weekly_stats.py`: `KAPPA` renamed to `DEFAULT_KAPPA` (startup defaults only — docstring documents the session-state override path via the agent)
+- `compute_uc_ceilings()`, `scale_decision()`, `write_handoff()` accept an optional `kappa` argument (default `DEFAULT_KAPPA`); flag checks, the >3x activation-sum check, and the JSON "kappa" key all use the kappa actually passed
+- `compute_uc_ceilings()` returns the kappa it used; `scale_decision()` returns `kappa_sum`; print helpers read from results instead of module constants
+- `tests/test_weekly_stats.py`: imports updated; 2 new tests for custom-kappa behavior (17 total, all passing)
+
+**What still needs work:**
+
+- Nothing — calling without `kappa` is byte-identical to the previous behavior
+
+**Integration notes:**
+
+- Piyush: when the agent updates `st.session_state["activation_thresholds"]`, pass that dict as `kappa=` to `compute_uc_ceilings()` / `scale_decision()` / `write_handoff()` — no import change needed otherwise
+- One stale call-site in `data_prep.run_pipeline()` (Ana's file) was fixed to match the new signature; no teammate-owned files touched
 
 **How to test it:**
 
@@ -149,6 +170,33 @@ streamlit run app/app.py   # check Chatbot tab name + budget toggle + KKT pass a
 pytest tests/test_agent_runtime_params.py -v
 ```
 
+pytest tests/test_weekly_stats.py -v
+python src/weekly_stats.py
+```
+
+## 2026-06-09 — Day-0 data deliverable: weekly stats, u_c ceilings, and team handoff
+
+**Branch:** feature/data-prep  
+**Owner:** Ana Valderrama  
+**Session goal:** Deliver the Day-0 data layer — weekly spend statistics, channel ceilings, and the handoff artifacts Greg and Meghna need to start the MMM fit and Model B.
+
+**What was built:**
+
+- `src/weekly_stats.py` — Ana's permanent data-layer module alongside `data_prep.py`, owning `compute_weekly_stats()` (per-channel weekly min/median/max, B_raw, train/holdout week counts, weekly y mean), `compute_uc_ceilings()` (u_c = 1.5 × max weekly spend per channel, flags any channel where u_c < κ), `scale_decision()` (D2 mid-market scaling), `write_handoff()`, and the `KAPPA` / `KAPPA_SUM` / `B_TARGET` / `B_SCENARIO_ACTIVATION` constants
+- `run_pipeline()` integration — every pipeline run automatically computes weekly stats and u_c ceilings and writes the handoff JSON; return dict includes `weekly_stats`, `uc_result`, `handoff`, `verification`
+- Handoff outputs — `data/processed/ana_day0_handoff.json` with `uc_ceilings`, `B_portfolio` ($831,142/wk), `B_scenario_activation` ($90,000), κ map, and per-channel weekly stats for Meghna and Greg; plus `weekly_stats.json` and `weekly_scaled_spend.csv` (when scale factor < 1)
+- `verify_pipeline_outputs()` — column presence (DATE_DAY, 5 spend, 5 adstock, y), >5% null flags, and all-USD currency checks on pipeline outputs
+- CLI report — `python src/weekly_stats.py` prints verification, weekly stats table, u_c ceiling table, Portfolio B recommendation, scale decision, and adstock ownership boundary
+- Tests — `tests/test_weekly_stats.py`: 15 tests on synthetic DataFrames, all passing
+
+**What still needs work:**
+
+- Real-data run flags >5% nulls in non-modeled CLICKS/IMPRESSIONS columns — informational, not blocking
+
+**Integration notes:**
+
+- Greg: reads `train_weeks` / `holdout_weeks` / `weekly_y_mean` and per-channel weekly stats from the handoff JSON for the weekly MMM fit scale
+- Meghna: pastes `uc_ceilings` into config `activation.ceilings` and `B_portfolio` into `optimization.default_budget`; all 5 channels have u_c ≥ κ, so no channel is forced always-OFF in Model B at real scale; `B_scenario_activation` ($90k) is available for the activation write-up
 ## 2026-06-09 — Day 1: Model B activation solver + Ana budget/u_c in config
 
 **Branch:** feature/optimizer  
@@ -195,6 +243,8 @@ pytest tests/test_optimizer_activation.py tests/test_optimization_pipeline.py -v
 **How to test it:**
 
 ```bash
+pytest tests/test_weekly_stats.py -v
+python src/weekly_stats.py
 pytest tests/test_optimization_pipeline.py tests/test_mmm_model.py::test_resolve_mmm_freq_reads_config_default -v
 ```
 
