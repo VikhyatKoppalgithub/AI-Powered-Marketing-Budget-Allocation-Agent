@@ -23,12 +23,55 @@
 
 - Greg: reads `train_weeks` / `holdout_weeks` / `weekly_y_mean` and per-channel weekly stats from the handoff JSON for the weekly MMM fit scale
 - Meghna: pastes `uc_ceilings` into config `activation.ceilings` and `B_portfolio` into `optimization.default_budget`; all 5 channels have u_c ≥ κ, so no channel is forced always-OFF in Model B at real scale; `B_scenario_activation` ($90k) is available for the activation write-up
+## 2026-06-09 — Day 1: Model B activation solver + Ana budget/u_c in config
+
+**Branch:** feature/optimizer  
+**Owner:** Meghna Advani  
+**Session goal:** Ship 32-pattern activation enumeration (Model B) and lock Ana handoff numbers.
+
+**What was built:**
+
+- `config.yaml`: `default_budget` $831,142/wk, `activation.ceilings` (Ana u_c), `scenario_budget_activation` $90k
+- `optimizer.py`: `solve_with_activation`, `solve_activation_kappa_sweep`, `channel_bounds` on `solve()`
+- `optimization_pipeline.py`: runs Model B, sets `optim_result_B` in session state
+- App pages 2/3 wired for Model B; tests in `test_optimizer_activation.py`
+
+**What still needs work:**
+
+- Model C (adstock + activation) — blocked on Greg `channel_params_C` + `adstock_lambdas`
+- Merge Ana `feature/data-prep` when on team remote for `ana_day0_handoff.json` auto-generation
+
+**How to test it:**
+
+```bash
+pytest tests/test_optimizer_activation.py tests/test_optimization_pipeline.py -v
+```
+
+## 2026-06-09 — Day 0: weekly MMM pipeline + activation κ in config
+
+**Branch:** feature/optimizer  
+**Owner:** Meghna Advani  
+**Session goal:** Wire stakeholder-mod κ and weekly MMM frequency without changing budget or u_c.
+
+**What was built:**
+
+- `config.yaml`: `mmm.freq: weekly`, `activation.thresholds` (confirmed κ), `optimization.time_unit`
+- `optimization_pipeline.py`: `load_activation_thresholds`, weekly `run_fitting`, session `activation_thresholds`
+- `mmm_model.py`: `resolve_mmm_freq()` reads config when freq omitted
+- `app/app.py`: default `activation_thresholds` session key
+- Tests: extended `test_optimization_pipeline.py`, `resolve_mmm_freq` in `test_mmm_model.py`
+
+**What still needs work:**
+
+- `activation.ceilings` (u_c) and `default_budget` — see `docs/optimization_problem_spec.md` §13 (how to decide)
+- Model B/C solvers (Day 1)
 
 **How to test it:**
 
 ```bash
 pytest tests/test_weekly_stats.py -v
 python src/weekly_stats.py
+pytest tests/test_optimization_pipeline.py tests/test_mmm_model.py::test_resolve_mmm_freq_reads_config_default -v
 ```
 
 ## 2026-06-09 — Bayesian Optimization for MMM tuning (Stage 1)

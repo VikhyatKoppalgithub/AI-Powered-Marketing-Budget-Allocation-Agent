@@ -19,6 +19,7 @@ from src.mmm_model import (
     export_params,
     fit_all_channels,
     fit_channel,
+    resolve_mmm_freq,
     saturation_curve,
 )
 
@@ -195,6 +196,12 @@ def test_export_params_roundtrip(tmp_path):
         assert set(data[ch].keys()) == {"a", "b"}
         assert isinstance(data[ch]["a"], float) and isinstance(data[ch]["b"], float)
         assert data[ch]["a"] > 0 and data[ch]["b"] > 0
+
+
+def test_resolve_mmm_freq_reads_config_default():
+    assert resolve_mmm_freq({"mmm": {"freq": "weekly"}}) == "weekly"
+    assert resolve_mmm_freq({}) == "monthly"
+    assert resolve_mmm_freq({"mmm": {"freq": "weekly"}}, "daily") == "daily"
 
 
 # --------------------------------------------------------------------------- #

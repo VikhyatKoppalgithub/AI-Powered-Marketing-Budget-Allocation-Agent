@@ -446,9 +446,16 @@ def evaluate_on_test(
 # --------------------------------------------------------------------------- #
 # Orchestration
 # --------------------------------------------------------------------------- #
+def resolve_mmm_freq(config: dict, freq: str | None = None) -> str:
+    """Return explicit ``freq`` or ``mmm.freq`` from config (default monthly)."""
+    if freq is not None:
+        return freq
+    return str(config.get("mmm", {}).get("freq", DEFAULT_FREQ))
+
+
 def run_fitting(
     config_path: str = "config.yaml",
-    freq: str = DEFAULT_FREQ,
+    freq: str | None = None,
     *,
     reg_b_weight: float | None = None,
     adstock_decay_overrides: dict[str, float] | None = None,
@@ -463,6 +470,7 @@ def run_fitting(
     - ``params_output_path``: override default JSON path (e.g. channel_params_bo.json)
     """
     config = load_config(config_path)
+    freq = resolve_mmm_freq(config, freq)
     channels = config["channels"]["modeled"]
     target = "y"
 
