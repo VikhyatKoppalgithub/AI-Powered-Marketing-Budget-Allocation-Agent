@@ -1,5 +1,29 @@
 # Development Log
 
+## 2026-06-10 — Global-optimality cross-check for Model B/C
+
+**Branch:** feature/agent-chart-explain-threshold-fix  
+**Owner:** Meghna Advani  
+**Session goal:** Add an independent empirical confirmation that the enumerated Model B/C allocation is globally optimal.
+
+**What was built:**
+
+- `optimizer.py` `cross_check_global_optimum(...)`: randomly samples activation patterns, locally optimizes each with SLSQP, and confirms none beats the enumerated winner. Returns `{enumerated, best_random, gap, relative_gap, patterns_sampled, passed}`. Diagnostic only — not wired into the pipeline or app.
+- Tests: 2 cases in `tests/test_optimizer_activation.py` (random search ties enumeration within rounding; a below-optimum claim is flagged as not-passed).
+- `docs/optimization.md`: added a "Global-optimality cross-check" subsection.
+
+**What still needs work:**
+
+- Not surfaced in the UI; it's a defense/verification helper run on demand.
+
+**Integration notes:**
+
+- New public function `cross_check_global_optimum` in `src/optimizer.py`. No contract changes.
+
+**How to test it:**
+
+- `pytest tests/test_optimizer_activation.py -q` (13 pass).
+
 ## 2026-06-10 — Bug fix: chatbot refused to update thresholds
 
 **Branch:** feature/optimizer  

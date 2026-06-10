@@ -40,3 +40,7 @@ The objective is smooth nonlinear sums of exponentials; SLSQP in SciPy handles b
 > **Provisional values.** Greg's λ are holdout-selected at portfolio scale, where carryover is weak (only `google_paid_search` λ=0.30; others 0.0) and Model C does not beat Model A. Keys/format are frozen, so refreshing the numbers needs no optimizer change.
 
 *Implementation:* `src/optimizer.py` (`solve`, `solve_with_activation`, `apply_adstock_steady_state`); orchestration in `src/optimization_pipeline.py` (`run_model_b`, `run_model_c`).
+
+### Global-optimality cross-check
+
+Enumeration is globally optimal *by construction* (exhaustive over the 32 discrete patterns × convex inside each). As an independent empirical confirmation, `cross_check_global_optimum(...)` attacks the same non-convex problem a different way: it randomly samples activation patterns, locally optimizes each with SLSQP, and verifies the best random allocation never beats the enumerated winner. It returns `{enumerated, best_random, gap, passed}`. This is a diagnostic helper — it is not in the live pipeline or the app.

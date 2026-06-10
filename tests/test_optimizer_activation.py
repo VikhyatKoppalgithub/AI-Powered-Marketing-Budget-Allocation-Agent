@@ -8,6 +8,7 @@ import pytest
 from src.optimizer import (
     ActivationSolveResult,
     apply_adstock_steady_state,
+    cross_check_global_optimum,
     solve,
     solve_activation_kappa_sweep,
     solve_with_activation,
@@ -202,3 +203,45 @@ def test_model_c_carryover_lifts_conversions(thresholds, ceilings, three_channel
         carry.result.predicted_conversions
         >= base.result.predicted_conversions - 1e-6
     )
+
+
+# --------------------------------------------------------------------------- #
+# cross_check_global_optimum — random multi-start never beats enumeration
+# --------------------------------------------------------------------------- #
+def test_cross_check_confirms_enumeration_is_global(thresholds, ceilings, three_channel_params):
+    channels = list(thresholds.keys())
+    budget = 60_000.0
+    winner = solve_with_activation(
+        three_channel_params, budget, channels, thresholds, ceilings, n_starts=5, seed=3
+    )
+    report = cross_check_global_optimum(
+        three_channel_params,
+        budget,
+        channels,
+        thresholds,
+        ceilings,
+        winner.result.predicted_conversions,
+        n_starts=64,
+        seed=3,
+    )
+    assert report["passed"]
+    # With 64 samples over 8 patterns, random search should also FIND the optimum.
+    assert report["best_random_conversions"] <= report["enumerated_conversions"] + 1.0
+    assert report["gap"] <= 1.0  # ties the enumerated winner (within rounding)
+    assert report["patterns_sampled"] > 0
+
+
+def test_cross_check_flags_a_too_good_claim(thresholds, ceilings, three_channel_params):
+    channels = list(thresholds.keys())
+    budget = 60_000.0
+    winner = solve_with_activation(
+        three_channel_params, budget, channels, thresholds, ceilings, n_starts=5, seed=1
+    )
+    # Claim far above the true optimum: random search can't beat it, so it "passes"
+    # — but a claim BELOW what random finds must fail.
+    inflated_low = winner.result.predicted_conversions - 10_000.0
+    report = cross_check_global_optimum(
+        three_channel_params, budget, channels, thresholds, ceilings,
+        inflated_low, n_starts=64, seed=1,
+    )
+    assert not report["passed"]
