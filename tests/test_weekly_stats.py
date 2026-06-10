@@ -11,7 +11,7 @@ from src.data_prep import load_config
 from src.weekly_stats import (
     B_SCENARIO_ACTIVATION,
     B_TARGET,
-    KAPPA,
+    DEFAULT_KAPPA,
     KAPPA_SUM,
     compute_uc_ceilings,
     compute_weekly_stats,
@@ -60,10 +60,10 @@ def test_like_df(pipeline_like_df) -> pd.DataFrame:
     return out.head(21)
 
 
-# ---------------------------------------------------------------- KAPPA
+# ---------------------------------------------------------------- DEFAULT_KAPPA
 def test_kappa_sum_is_75k():
     assert KAPPA_SUM == 75_000
-    assert set(KAPPA) == set(MODELED)
+    assert set(DEFAULT_KAPPA) == set(MODELED)
 
 
 # ----------------------------------------------- verify_pipeline_outputs
@@ -148,33 +148,64 @@ def test_scale_decision_handles_zero_spend():
     assert decision["B_recommended"] == 0.0
 
 
+def test_scale_decision_uses_custom_kappa_sum():
+    # custom kappa dict with sum = 150_000
+    # b_raw = 400_000 -> ratio 2.7x -> scale_down must be False
+    # (would be True against the default 75_000 sum)
+    custom_kappa = {ch: 30_000.0 for ch in DEFAULT_KAPPA}
+    assert sum(custom_kappa.values()) == 150_000.0
+
+    default_decision = scale_decision(b_raw=400_000.0)
+    assert default_decision["scale_down"] is True
+
+    custom_decision = scale_decision(b_raw=400_000.0, kappa=custom_kappa)
+    assert custom_decision["scale_down"] is False
+    assert custom_decision["kappa_sum"] == 150_000.0
+
+
 # ------------------------------------------------------- compute_uc_ceilings
 def test_compute_uc_ceilings_formula_and_no_warnings():
-    per_channel = {ch: {"min": 0.0, "median": 50_000.0, "max": 100_000.0} for ch in KAPPA}
+    per_channel = {ch: {"min": 0.0, "median": 50_000.0, "max": 100_000.0} for ch in DEFAULT_KAPPA}
     out = compute_uc_ceilings(per_channel)
-    assert set(out["uc_ceilings"]) == set(KAPPA)
-    for ch in KAPPA:
+    assert set(out["uc_ceilings"]) == set(DEFAULT_KAPPA)
+    for ch in DEFAULT_KAPPA:
         assert out["uc_ceilings"][ch] == pytest.approx(1.5 * 100_000.0)
     assert out["uc_warnings"] == []
 
 
 def test_compute_uc_ceilings_flags_channel_below_kappa():
-    per_channel = {ch: {"min": 0.0, "median": 50_000.0, "max": 100_000.0} for ch in KAPPA}
-    # meta_instagram kappa = 12_000; max weekly 5_000 -> u_c = 7_500 < kappa
+    per_channel = {ch: {"min": 0.0, "median": 50_000.0, "max": 100_000.0} for ch in DEFAULT_KAPPA}
+    # meta_instagram default kappa = 12_000; max weekly 5_000 -> u_c = 7_500 < kappa
     per_channel["meta_instagram"] = {"min": 0.0, "median": 2_000.0, "max": 5_000.0}
     out = compute_uc_ceilings(per_channel)
     assert out["uc_ceilings"]["meta_instagram"] == pytest.approx(7_500.0)
     assert any(w.startswith("meta_instagram") for w in out["uc_warnings"])
 
 
+def test_compute_uc_ceilings_respects_custom_kappa():
+    # channel max weekly = 10_000 -> u_c = 15_000
+    # default kappa for google_paid_search is 18_000 -> would flag
+    # custom kappa of 9_000 -> must NOT flag
+    per_channel = {ch: {"min": 0.0, "median": 8_000.0, "max": 10_000.0} for ch in DEFAULT_KAPPA}
+
+    default_out = compute_uc_ceilings(per_channel)
+    assert any(w.startswith("google_paid_search") for w in default_out["uc_warnings"])
+
+    custom_kappa = {ch: 9_000.0 for ch in DEFAULT_KAPPA}
+    custom_out = compute_uc_ceilings(per_channel, kappa=custom_kappa)
+    assert custom_out["uc_ceilings"]["google_paid_search"] == pytest.approx(15_000.0)
+    assert custom_out["uc_warnings"] == []
+    assert custom_out["kappa"] == custom_kappa
+
+
 def test_compute_uc_ceilings_missing_channel_defaults_to_zero():
     out = compute_uc_ceilings({})
     assert all(v == 0.0 for v in out["uc_ceilings"].values())
-    assert len(out["uc_warnings"]) == len(KAPPA)
+    assert len(out["uc_warnings"]) == len(DEFAULT_KAPPA)
 
 
 def test_print_uc_ceilings_prints_table_and_flags(capsys):
-    per_channel = {ch: {"min": 0.0, "median": 50_000.0, "max": 100_000.0} for ch in KAPPA}
+    per_channel = {ch: {"min": 0.0, "median": 50_000.0, "max": 100_000.0} for ch in DEFAULT_KAPPA}
     per_channel["meta_instagram"] = {"min": 0.0, "median": 2_000.0, "max": 5_000.0}
     print_uc_ceilings(compute_uc_ceilings(per_channel))
     out = capsys.readouterr().out
@@ -188,7 +219,7 @@ def test_write_handoff_creates_valid_json(
 ):
     verification = verify_pipeline_outputs(pipeline_like_df, test_like_df, config)
     stats = compute_weekly_stats(pipeline_like_df, test_like_df, config)
-    uc_result = compute_uc_ceilings(stats["per_channel_weekly"], config)
+    uc_result = compute_uc_ceilings(stats["per_channel_weekly"])
 
     out_path = tmp_path / "handoff.json"
     handoff = write_handoff(stats, uc_result, config, verification, out_path=out_path)

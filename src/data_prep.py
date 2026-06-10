@@ -503,7 +503,7 @@ def run_pipeline(config_path: str = "config.yaml", raw_path: str | None = None) 
     )
 
     weekly_stats = compute_weekly_stats(train_df, test_df, config)
-    uc_result = compute_uc_ceilings(weekly_stats["per_channel_weekly"], config)
+    uc_result = compute_uc_ceilings(weekly_stats["per_channel_weekly"])
     verification = verify_pipeline_outputs(train_df, test_df, config)
     handoff = write_handoff(weekly_stats, uc_result, config, verification)
 

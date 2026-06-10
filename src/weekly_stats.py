@@ -9,7 +9,14 @@ automatically after the train/test split:
 - compute_uc_ceilings()   — u_c = 1.5 x max weekly spend, kappa comparison
 - scale_decision()        — D2 mid-market scaling recommendation
 - write_handoff()         — data/processed/ana_day0_handoff.json (+ weekly_stats.json)
-- KAPPA / KAPPA_SUM / B_TARGET / B_SCENARIO_ACTIVATION constants
+- DEFAULT_KAPPA / KAPPA_SUM / B_TARGET / B_SCENARIO_ACTIVATION constants
+
+DEFAULT_KAPPA holds the professor's example activation thresholds
+mapped to our 5 modeled channels. These are STARTUP DEFAULTS only —
+runtime thresholds come from st.session_state['activation_thresholds']
+via the agent (Piyush) and are passed into these functions as the
+`kappa` argument. Never read DEFAULT_KAPPA inside computation when
+a kappa argument is provided.
 
 Greg reads the handoff JSON for the weekly MMM fit scale; Meghna pastes
 uc_ceilings into config activation.ceilings and B_portfolio into
@@ -36,15 +43,16 @@ from src.data_prep import load_config, resolve_project_path  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
-# Professor's kappa activation thresholds (USD/week).
-KAPPA: dict[str, int] = {
+# Professor's example kappa activation thresholds (USD/week) — startup
+# defaults only; runtime kappa is passed in as a function argument.
+DEFAULT_KAPPA: dict[str, int] = {
     "google_paid_search": 18_000,
     "google_shopping": 15_000,
     "google_pmax": 18_000,
     "meta_facebook": 12_000,
     "meta_instagram": 12_000,
 }
-KAPPA_SUM = sum(KAPPA.values())  # 75_000
+KAPPA_SUM = sum(DEFAULT_KAPPA.values())  # 75_000
 
 # Mid-market target for recommended weekly budget B.
 B_TARGET = 180_000
@@ -178,31 +186,46 @@ def compute_weekly_stats(
 
 def compute_uc_ceilings(
     per_channel_weekly: dict[str, dict[str, float]],
-    config: dict | None = None,
+    kappa: dict[str, float] | None = None,
 ) -> dict:
     """
     u_c[c] = 1.5 x max historical weekly spend per channel.
     Flags channels where u_c < kappa (will always be OFF in Model B).
     Called automatically by data_prep.run_pipeline().
+
+    `kappa` defaults to DEFAULT_KAPPA; pass runtime thresholds
+    (st.session_state['activation_thresholds']) to override.
     """
+    kappa = kappa or DEFAULT_KAPPA
     uc: dict[str, float] = {}
     uc_warnings: list[str] = []
-    for ch in KAPPA:
+    for ch in kappa:
         weekly_max = per_channel_weekly.get(ch, {}).get("max", 0.0)
         uc[ch] = 1.5 * weekly_max
-        if uc[ch] < KAPPA[ch]:
+        if uc[ch] < kappa[ch]:
             uc_warnings.append(f"{ch}: u_c < kappa — will always be OFF")
-    return {"uc_ceilings": uc, "uc_warnings": uc_warnings}
+    return {"uc_ceilings": uc, "uc_warnings": uc_warnings, "kappa": dict(kappa)}
 
 
-def scale_decision(b_raw: float) -> dict:
-    """Decide whether to scale spend down to the mid-market range (D2)."""
+def scale_decision(
+    b_raw: float,
+    kappa: dict[str, float] | None = None,
+) -> dict:
+    """
+    Decide whether to scale spend down to the mid-market range (D2).
+
+    `kappa` defaults to DEFAULT_KAPPA; the >3x activation-sum check uses
+    the sum of the kappa actually provided.
+    """
+    kappa = kappa or DEFAULT_KAPPA
+    kappa_sum = sum(kappa.values())
     scale_factor = min(1.0, B_TARGET / b_raw) if b_raw > 0 else 1.0
     return {
         "B_raw": b_raw,
         "B_recommended": b_raw * scale_factor,
         "scale_factor": scale_factor,
-        "scale_down": b_raw > 3 * KAPPA_SUM,
+        "scale_down": b_raw > 3 * kappa_sum,
+        "kappa_sum": kappa_sum,
     }
 
 
@@ -212,18 +235,23 @@ def write_handoff(
     config: dict,
     verification: dict | None = None,
     out_path: Path | None = None,
+    kappa: dict[str, float] | None = None,
 ) -> dict:
     """
     Write data/processed/ana_day0_handoff.json (+ weekly_stats.json and,
     when scaling applies, weekly_scaled_spend.csv) for Greg and Meghna.
+
+    `kappa` defaults to DEFAULT_KAPPA; the JSON's "kappa" key reflects
+    the kappa actually used.
     """
+    kappa = kappa or DEFAULT_KAPPA
     verification = verification or {
         "pipeline_verified": None,
         "adstock_cols_present": [],
         "warnings": [],
         "spend_cols": [],
     }
-    decision = scale_decision(weekly_stats["B_raw"])
+    decision = scale_decision(weekly_stats["B_raw"], kappa)
     out_path = out_path or resolve_project_path("data/processed/ana_day0_handoff.json")
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -236,7 +264,7 @@ def write_handoff(
         "B_raw": round(decision["B_raw"], 2),
         "B_recommended": round(decision["B_recommended"], 2),
         "scale_factor": round(decision["scale_factor"], 4),
-        "kappa": KAPPA,
+        "kappa": dict(kappa),
         "per_channel_weekly": {
             ch: {k: round(v, 2) for k, v in st.items()}
             for ch, st in weekly_stats["per_channel_weekly"].items()
@@ -316,11 +344,12 @@ def print_uc_ceilings(uc_result: dict) -> None:
     from src.channel_policy import display_name
 
     uc = uc_result["uc_ceilings"]
+    kappa_map = uc_result.get("kappa", DEFAULT_KAPPA)
     print("=== Channel Ceilings u_c (for Meghna -> activation.ceilings) ===")
     header = f"{'Channel':<25}| {'kappa (min ON)':>14} | {'u_c (max ON)':>14} | {'Ratio u_c/kappa':>15}"
     print(header)
     print("-" * len(header))
-    for ch, kappa in KAPPA.items():
+    for ch, kappa in kappa_map.items():
         ratio = uc[ch] / kappa if kappa else 0.0
         print(
             f"{display_name(ch):<25}| ${kappa:>13,.0f} | ${uc[ch]:>13,.0f} | {ratio:>14.1f}x"
@@ -348,11 +377,12 @@ def print_portfolio_b(b_portfolio: float) -> None:
 
 
 def print_scale_decision(decision: dict) -> None:
-    ratio = decision["B_raw"] / KAPPA_SUM if KAPPA_SUM else 0.0
+    kappa_sum = decision.get("kappa_sum", KAPPA_SUM)
+    ratio = decision["B_raw"] / kappa_sum if kappa_sum else 0.0
     verdict = "Scale down to mid-market" if decision["scale_down"] else "Use full scale"
     print("=== Scale Decision (D2) ===")
     print(f"  Raw mean weekly portfolio spend : ${decision['B_raw']:,.0f}")
-    print(f"  kappa sum (all 5 channels ON)   : ${KAPPA_SUM:,.0f}")
+    print(f"  kappa sum (all 5 channels ON)   : ${kappa_sum:,.0f}")
     print(f"  Ratio                           : {ratio:.1f}x")
     print(f"  Recommended B                   : ${decision['B_recommended']:,.0f}")
     print(f"  Scale factor applied            : {decision['scale_factor']:.2f}")

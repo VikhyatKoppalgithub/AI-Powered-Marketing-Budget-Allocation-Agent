@@ -1,5 +1,34 @@
 # Development Log
 
+## 2026-06-10 — Runtime-parameterize kappa in the data layer (v3 plan §2)
+
+**Branch:** feature/data-prep  
+**Owner:** Ana Valderrama  
+**Session goal:** Treat kappa as a startup default that any caller can override at runtime, per the team's config-defaults / session-state-truth agreement.
+
+**What was built:**
+
+- `src/weekly_stats.py`: `KAPPA` renamed to `DEFAULT_KAPPA` (startup defaults only — docstring documents the session-state override path via the agent)
+- `compute_uc_ceilings()`, `scale_decision()`, `write_handoff()` accept an optional `kappa` argument (default `DEFAULT_KAPPA`); flag checks, the >3x activation-sum check, and the JSON "kappa" key all use the kappa actually passed
+- `compute_uc_ceilings()` returns the kappa it used; `scale_decision()` returns `kappa_sum`; print helpers read from results instead of module constants
+- `tests/test_weekly_stats.py`: imports updated; 2 new tests for custom-kappa behavior (17 total, all passing)
+
+**What still needs work:**
+
+- Nothing — calling without `kappa` is byte-identical to the previous behavior
+
+**Integration notes:**
+
+- Piyush: when the agent updates `st.session_state["activation_thresholds"]`, pass that dict as `kappa=` to `compute_uc_ceilings()` / `scale_decision()` / `write_handoff()` — no import change needed otherwise
+- One stale call-site in `data_prep.run_pipeline()` (Ana's file) was fixed to match the new signature; no teammate-owned files touched
+
+**How to test it:**
+
+```bash
+pytest tests/test_weekly_stats.py -v
+python src/weekly_stats.py
+```
+
 ## 2026-06-09 — Day-0 data deliverable: weekly stats, u_c ceilings, and team handoff
 
 **Branch:** feature/data-prep  
