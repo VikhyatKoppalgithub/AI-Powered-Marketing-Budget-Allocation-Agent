@@ -493,6 +493,20 @@ def run_pipeline(config_path: str = "config.yaml", raw_path: str | None = None) 
     train_bytes = export_processed(train_df, str(resolve_project_path(config["data"]["train_path"])))
     test_bytes = export_processed(test_df, str(resolve_project_path(config["data"]["test_path"])))
 
+    # Weekly handoff for Greg and Meghna (ana_day0_handoff.json).
+    # Imported here to avoid a circular import (weekly_stats imports load_config).
+    from src.weekly_stats import (
+        compute_uc_ceilings,
+        compute_weekly_stats,
+        verify_pipeline_outputs,
+        write_handoff,
+    )
+
+    weekly_stats = compute_weekly_stats(train_df, test_df, config)
+    uc_result = compute_uc_ceilings(weekly_stats["per_channel_weekly"], config)
+    verification = verify_pipeline_outputs(train_df, test_df, config)
+    handoff = write_handoff(weekly_stats, uc_result, config, verification)
+
     return {
         "train_df": train_df,
         "test_df": test_df,
@@ -502,6 +516,10 @@ def run_pipeline(config_path: str = "config.yaml", raw_path: str | None = None) 
         "test_csv_bytes": test_bytes,
         "eda_report": eda_report,
         "raw_path": abs_raw,
+        "weekly_stats": weekly_stats,
+        "uc_result": uc_result,
+        "handoff": handoff,
+        "verification": verification,
     }
 
 
