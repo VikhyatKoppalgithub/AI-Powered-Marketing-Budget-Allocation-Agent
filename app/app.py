@@ -42,6 +42,7 @@ defaults = {
     "company_profile": {},
     "channel_params": None,
     "optim_result": None,
+    "optim_result_B": None,
     "optimizer_fn": None,
     "activation_thresholds": {},
 }

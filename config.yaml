@@ -121,8 +121,7 @@ adstock:
 mmm:
   freq: weekly
 
-# Task 1 activation thresholds (κ) and ceilings (u_c) for Models B/C.
-# κ confirmed by team; u_c pending Ana (1.5 × max historical weekly spend).
+# Task 1 activation (Models B/C). Values from Ana Day-0 handoff (weekly train resample).
 activation:
   thresholds:
     google_paid_search: 18000
@@ -130,11 +129,18 @@ activation:
     google_pmax: 18000
     meta_facebook: 12000
     meta_instagram: 12000
-  ceilings: null
+  ceilings:
+    google_paid_search: 375516
+    google_shopping: 912392
+    google_pmax: 1232752
+    meta_facebook: 1465278
+    meta_instagram: 488104
+  kappa_sensitivity_factors: [0.8, 1.0, 1.2]
 
 optimization:
   time_unit: weekly
-  default_budget: 50000
+  default_budget: 831142
+  scenario_budget_activation: 90000
   n_starts: 50
   solver: "SLSQP"
   tol: 1.0e-9

@@ -1,5 +1,29 @@
 # Development Log
 
+## 2026-06-09 — Day 1: Model B activation solver + Ana budget/u_c in config
+
+**Branch:** feature/optimizer  
+**Owner:** Meghna Advani  
+**Session goal:** Ship 32-pattern activation enumeration (Model B) and lock Ana handoff numbers.
+
+**What was built:**
+
+- `config.yaml`: `default_budget` $831,142/wk, `activation.ceilings` (Ana u_c), `scenario_budget_activation` $90k
+- `optimizer.py`: `solve_with_activation`, `solve_activation_kappa_sweep`, `channel_bounds` on `solve()`
+- `optimization_pipeline.py`: runs Model B, sets `optim_result_B` in session state
+- App pages 2/3 wired for Model B; tests in `test_optimizer_activation.py`
+
+**What still needs work:**
+
+- Model C (adstock + activation) — blocked on Greg `channel_params_C` + `adstock_lambdas`
+- Merge Ana `feature/data-prep` when on team remote for `ana_day0_handoff.json` auto-generation
+
+**How to test it:**
+
+```bash
+pytest tests/test_optimizer_activation.py tests/test_optimization_pipeline.py -v
+```
+
 ## 2026-06-09 — Day 0: weekly MMM pipeline + activation κ in config
 
 **Branch:** feature/optimizer  
@@ -16,8 +40,7 @@
 
 **What still needs work:**
 
-- `activation.ceilings` (u_c) pending Ana
-- `optimization.default_budget` still placeholder until team locks portfolio B
+- `activation.ceilings` (u_c) and `default_budget` — see `docs/optimization_problem_spec.md` §13 (how to decide)
 - Model B/C solvers (Day 1)
 
 **How to test it:**

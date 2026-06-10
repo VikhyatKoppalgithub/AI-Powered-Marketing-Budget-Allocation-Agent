@@ -307,14 +307,33 @@ Channels and objective form are not per-session toggles without re-fitting MMM. 
 
 ## 9. Suggested `config.yaml` updates (team approval)
 
+With `mmm.freq: weekly`, express **B in USD/week** (or document conversion):
+
 ```yaml
+mmm:
+  freq: weekly
 optimization:
-  default_budget: 3500000   # monthly portfolio USD; EDA 2026-06-03
-  budget_period: "monthly"
-  budget_aggregation: "portfolio"
+  time_unit: weekly
+  default_budget: 808000   # ~$3.5M/month ÷ 4.33; portfolio Model A (EDA 2026-06-03)
 ```
 
-Add a comment pointing to this file at the top of the `optimization:` block.
+Users still override via `confirmed_budget` in Streamlit. See **§13** for activation ceilings and scenario-B choices.
+
+---
+
+## 13. Stakeholder mod — config values (locked Day 1)
+
+Ana Day-0 handoff (weekly train resample):
+
+| Field | Value |
+|---|---|
+| `optimization.default_budget` | **831,142** USD/week |
+| `optimization.scenario_budget_activation` | **90,000** USD/week (optional activation narrative) |
+| `activation.ceilings` | see `config.yaml` (1.5 × max weekly train spend) |
+
+Model B solver: `solve_with_activation()` in `optimizer.py` — 32-pattern enumeration, κ ±20% via `solve_activation_kappa_sweep()`.
+
+Model C: pending Greg re-fit + holdout λ.
 
 ---
 
@@ -364,6 +383,7 @@ python -m src.bo_mmm_tuning
 | Stage 7 confirmation gate | [backward_analysis.md](backward_analysis.md) |
 | Repo / LLM context | [../PROJECT_HANDOFF.md](../PROJECT_HANDOFF.md) |
 | BO plan (team) | [bayesian_optimization_plan.md](bayesian_optimization_plan.md) |
+| Pending κ / B / u_c decisions | **§13** (this file) |
 
 ---
 

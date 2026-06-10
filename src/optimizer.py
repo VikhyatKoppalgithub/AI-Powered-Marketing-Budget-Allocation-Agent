@@ -38,6 +38,17 @@ class OptimResult:
     message: str = ""
 
 
+@dataclass
+class ActivationSolveResult:
+    """Model B output: best activation pattern + convex subproblem solution."""
+
+    result: OptimResult
+    active_channels: tuple[str, ...]
+    patterns_evaluated: int
+    patterns_feasible: int
+    pattern_mask: tuple[bool, ...]
+
+
 def _format_status(kkt_status: str, success: bool, message: str) -> str:
     """Human-readable status for Streamlit (page 3 caption)."""
     solver = "converged" if success else "check solver"
@@ -209,7 +220,10 @@ def _build_bounds(
     channels: list[str],
     budget: float,
     caps: dict[str, float | None] | None,
+    channel_bounds: dict[str, tuple[float, float]] | None = None,
 ) -> list[tuple[float, float]]:
+    if channel_bounds is not None:
+        return [channel_bounds[ch] for ch in channels]
     bounds = []
     for ch in channels:
         upper = budget
@@ -219,9 +233,83 @@ def _build_bounds(
     return bounds
 
 
+def _initial_guess_bounded(
+    bounds: list[tuple[float, float]],
+    budget: float,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """Feasible starting point respecting per-channel lower/upper bounds."""
+    lows = np.array([b[0] for b in bounds], dtype=np.float64)
+    highs = np.array([b[1] for b in bounds], dtype=np.float64)
+    x = lows.copy()
+    min_commit = float(lows.sum())
+    if min_commit > budget + 1e-9:
+        return np.clip(lows, lows, highs)
+    remaining = budget - min_commit
+    if remaining <= 1e-9:
+        return x
+    slack = np.maximum(highs - lows, 0.0)
+    total_slack = float(slack.sum())
+    if total_slack <= 1e-12:
+        return x
+    add = min(remaining, total_slack)
+    weights = rng.dirichlet(np.maximum(slack, 1e-12))
+    x = lows + weights * add
+    return np.clip(x, lows, highs)
+
+
 def _initial_guess(n: int, budget: float, rng: np.random.Generator) -> np.ndarray:
     weights = rng.dirichlet(np.ones(n))
     return weights * budget
+
+
+def iter_activation_patterns(n_channels: int) -> list[tuple[bool, ...]]:
+    """All 2^n on/off subsets for activation enumeration."""
+    return [
+        tuple(bool((mask >> i) & 1) for i in range(n_channels))
+        for mask in range(2**n_channels)
+    ]
+
+
+def _min_commitment(
+    channels: list[str],
+    on_mask: tuple[bool, ...],
+    thresholds: dict[str, float],
+) -> float:
+    return sum(thresholds[ch] for ch, on in zip(channels, on_mask) if on)
+
+
+def _bounds_for_activation_pattern(
+    channels: list[str],
+    budget: float,
+    on_mask: tuple[bool, ...],
+    thresholds: dict[str, float],
+    ceilings: dict[str, float],
+) -> dict[str, tuple[float, float]] | None:
+    """Per-channel bounds for one activation pattern; None if infeasible."""
+    bounds: dict[str, tuple[float, float]] = {}
+    for ch, on in zip(channels, on_mask):
+        if not on:
+            bounds[ch] = (0.0, 0.0)
+            continue
+        lo = float(thresholds[ch])
+        hi = min(float(ceilings[ch]), budget)
+        if lo > hi + 1e-6:
+            return None
+        bounds[ch] = (lo, hi)
+    return bounds
+
+
+def _pattern_is_feasible(
+    channels: list[str],
+    on_mask: tuple[bool, ...],
+    budget: float,
+    thresholds: dict[str, float],
+    ceilings: dict[str, float],
+) -> bool:
+    if _min_commitment(channels, on_mask, thresholds) > budget + 1e-6:
+        return False
+    return _bounds_for_activation_pattern(channels, budget, on_mask, thresholds, ceilings) is not None
 
 
 def solve(
@@ -229,6 +317,7 @@ def solve(
     budget: float,
     channels: list[str],
     caps: dict | None = None,
+    channel_bounds: dict[str, tuple[float, float]] | None = None,
     n_starts: int | None = None,
     tol: float | None = None,
     max_iter: int | None = None,
@@ -243,7 +332,7 @@ def solve(
     max_iter = max_iter if max_iter is not None else int(opt_cfg.get("max_iter", 1000))
 
     n = len(channels)
-    bounds = _build_bounds(channels, budget, caps)
+    bounds = _build_bounds(channels, budget, caps, channel_bounds=channel_bounds)
     rng = np.random.default_rng(seed)
 
     def budget_constraint(x: np.ndarray) -> float:
@@ -256,9 +345,9 @@ def solve(
         {"type": "ineq", "fun": budget_constraint, "jac": budget_jac},
     )
 
-    starts: list[np.ndarray] = [np.full(n, budget / n)]
+    starts: list[np.ndarray] = [_initial_guess_bounded(bounds, budget, rng)]
     for _ in range(max(n_starts - 1, 0)):
-        starts.append(_initial_guess(n, budget, rng))
+        starts.append(_initial_guess_bounded(bounds, budget, rng))
 
     best_x: np.ndarray | None = None
     best_val = np.inf
@@ -278,14 +367,19 @@ def solve(
         )
         if res.fun < best_val:
             best_val = float(res.fun)
-            best_x = np.clip(res.x, 0.0, None)
+            best_x = np.clip(res.x, [b[0] for b in bounds], [b[1] for b in bounds])
             best_success = bool(res.success)
             best_message = str(res.message)
 
     assert best_x is not None
     obj = predicted_conversions(best_x, params, channels)
-    lam = _estimate_lambda(best_x, params, channels, budget, caps, tol)
-    kkt = verify_kkt(best_x, budget, channels, params=params, caps=caps, tol=tol)
+    effective_caps = caps
+    if channel_bounds is not None:
+        effective_caps = {
+            ch: channel_bounds[ch][1] for ch in channels if channel_bounds[ch][1] < budget
+        }
+    lam = _estimate_lambda(best_x, params, channels, budget, effective_caps, tol)
+    kkt = verify_kkt(best_x, budget, channels, params=params, caps=effective_caps, tol=tol)
 
     allocation = {ch: float(best_x[i]) for i, ch in enumerate(channels)}
     total_spent = float(sum(allocation.values()))
@@ -300,6 +394,120 @@ def solve(
         success=best_success,
         message=best_message,
     )
+
+
+def solve_with_activation(
+    params: dict,
+    budget: float,
+    channels: list[str],
+    thresholds: dict[str, float],
+    ceilings: dict[str, float],
+    *,
+    n_starts: int | None = None,
+    tol: float | None = None,
+    max_iter: int | None = None,
+    seed: int = 0,
+) -> ActivationSolveResult:
+    """
+    Model B: enumerate activation patterns, solve convex subproblem per feasible subset.
+
+    Feasible spend per channel c: {0} union [kappa_c, u_c] when ON.
+    """
+    _validate_inputs(params, budget, channels)
+    for ch in channels:
+        if ch not in thresholds or ch not in ceilings:
+            raise KeyError(f"Missing activation threshold or ceiling for '{ch}'")
+        if thresholds[ch] > ceilings[ch] + 1e-6:
+            raise ValueError(
+                f"Channel '{ch}': kappa {thresholds[ch]} exceeds ceiling {ceilings[ch]}"
+            )
+
+    patterns = iter_activation_patterns(len(channels))
+    best: ActivationSolveResult | None = None
+    feasible_count = 0
+
+    for pattern_idx, on_mask in enumerate(patterns):
+        if not _pattern_is_feasible(channels, on_mask, budget, thresholds, ceilings):
+            continue
+        feasible_count += 1
+        ch_bounds = _bounds_for_activation_pattern(
+            channels, budget, on_mask, thresholds, ceilings
+        )
+        assert ch_bounds is not None
+        sub = solve(
+            params,
+            budget,
+            channels,
+            channel_bounds=ch_bounds,
+            n_starts=n_starts,
+            tol=tol,
+            max_iter=max_iter,
+            seed=seed + pattern_idx,
+        )
+        active = tuple(ch for ch, on in zip(channels, on_mask) if on)
+        candidate = ActivationSolveResult(
+            result=sub,
+            active_channels=active,
+            patterns_evaluated=len(patterns),
+            patterns_feasible=0,
+            pattern_mask=on_mask,
+        )
+        if best is None or sub.predicted_conversions > best.result.predicted_conversions:
+            best = candidate
+
+    if best is None:
+        raise RuntimeError(
+            f"No feasible activation pattern for budget {budget}; "
+            f"minimum ON commitment exceeds B for all non-empty subsets."
+        )
+
+    best.patterns_feasible = feasible_count
+    best.patterns_evaluated = len(patterns)
+    return best
+
+
+def solve_activation_kappa_sweep(
+    params: dict,
+    budget: float,
+    channels: list[str],
+    thresholds: dict[str, float],
+    ceilings: dict[str, float],
+    *,
+    factors: tuple[float, ...] = (0.8, 1.0, 1.2),
+    **solve_kwargs: Any,
+) -> dict[str, ActivationSolveResult]:
+    """Re-run Model B at scaled kappa values for sensitivity reporting."""
+    results: dict[str, ActivationSolveResult] = {}
+    for factor in factors:
+        scaled = {ch: float(thresholds[ch]) * factor for ch in channels}
+        label = f"kappa_x{factor:g}"
+        results[label] = solve_with_activation(
+            params,
+            budget,
+            channels,
+            scaled,
+            ceilings,
+            **solve_kwargs,
+        )
+    return results
+
+
+def load_activation_from_config(config: dict | None = None) -> tuple[dict[str, float], dict[str, float]]:
+    """Load kappa and u_c dicts from config activation block."""
+    cfg = config or load_config()
+    act = cfg.get("activation") or {}
+    channels = list(cfg["channels"]["modeled"])
+    thresholds_raw = act.get("thresholds") or {}
+    ceilings_raw = act.get("ceilings") or {}
+    thresholds = {ch: float(thresholds_raw[ch]) for ch in channels if ch in thresholds_raw}
+    ceilings = {ch: float(ceilings_raw[ch]) for ch in channels if ch in ceilings_raw}
+    missing_t = set(channels) - set(thresholds)
+    missing_c = set(channels) - set(ceilings)
+    if missing_t:
+        raise KeyError(f"Missing activation.thresholds for: {sorted(missing_t)}")
+    if missing_c:
+        raise KeyError(f"Missing activation.ceilings for: {sorted(missing_c)}")
+    return thresholds, ceilings
 
 
 def load_params(path: str | Path) -> dict:

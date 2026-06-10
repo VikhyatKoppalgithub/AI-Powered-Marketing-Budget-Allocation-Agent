@@ -19,7 +19,7 @@ def test_run_optimization_pipeline_returns_result():
         "meta_facebook": {"a": 70.0, "b": 0.003},
         "meta_instagram": {"a": 60.0, "b": 0.004},
     }
-    optim, out_params, budget = run_optimization_pipeline(
+    optim, out_params, budget, model_b = run_optimization_pipeline(
         confirmed_budget=10_000.0,
         channel_params=params,
     )
@@ -27,6 +27,8 @@ def test_run_optimization_pipeline_returns_result():
     assert budget == 10_000.0
     assert optim.total_spent <= budget + 1e-6
     assert optim.allocation
+    assert model_b is not None
+    assert model_b.result.total_spent <= budget + 1e-3
 
 
 def test_optimizer_fn_for_sensitivity_shape():
@@ -47,7 +49,10 @@ def test_load_activation_thresholds_from_config():
 def test_load_activation_thresholds_custom_config():
     config = {
         "channels": {"modeled": ["alpha", "beta"]},
-        "activation": {"thresholds": {"alpha": 5000.0, "beta": 7000.0}},
+        "activation": {
+            "thresholds": {"alpha": 5000.0, "beta": 7000.0},
+            "ceilings": {"alpha": 50_000.0, "beta": 60_000.0},
+        },
     }
     assert load_activation_thresholds(config) == {"alpha": 5000.0, "beta": 7000.0}
 
@@ -77,6 +82,23 @@ def test_run_optimization_pipeline_fits_weekly(monkeypatch):
     assert captured["freq"] == "weekly"
 
 
+def test_run_optimization_pipeline_runs_model_b_with_config():
+    params = {
+        "google_paid_search": {"a": 100.0, "b": 0.001},
+        "google_shopping": {"a": 80.0, "b": 0.002},
+        "google_pmax": {"a": 90.0, "b": 0.0015},
+        "meta_facebook": {"a": 70.0, "b": 0.003},
+        "meta_instagram": {"a": 60.0, "b": 0.004},
+    }
+    optim, _, budget, model_b = run_optimization_pipeline(
+        confirmed_budget=100_000.0,
+        channel_params=params,
+    )
+    assert budget == 100_000.0
+    assert model_b is not None
+    assert model_b.result.total_spent <= budget + 1e-3
+
+
 def test_apply_optimization_to_session_sets_activation_thresholds():
     class FakeSession:
         pass
@@ -94,3 +116,4 @@ def test_apply_optimization_to_session_sets_activation_thresholds():
     apply_optimization_to_session(session, optim, {"ch_a": {"a": 1.0, "b": 0.1}})
     assert session.optim_result is optim
     assert session.activation_thresholds["meta_facebook"] == 12_000.0
+    assert session.optim_result_B is None
