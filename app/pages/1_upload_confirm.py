@@ -21,6 +21,38 @@ from src.zip_handler import (
     render_schema_confirmation,
 )
 
+# Average weeks per month/year — used to convert an entered budget to the
+# weekly scale the optimizer (and Ana's κ/u_c) operate on.
+_WEEKS_PER_PERIOD = {"Weekly": 1.0, "Monthly": 52.0 / 12.0, "Annual": 52.0}
+
+
+def _to_weekly_budget(amount: float, period: str) -> float:
+    """Convert a budget entered for ``period`` into a weekly budget."""
+    return float(amount) / _WEEKS_PER_PERIOD.get(period, 1.0)
+
+
+def _invalidate_downstream() -> None:
+    """Clear cached backward-analysis/optimization results.
+
+    A changed budget (or dataset) must force those stages to recompute —
+    otherwise the new budget is silently ignored because they only rerun when
+    their cached state is empty/unconfirmed.
+    """
+    for key in (
+        "backward_analysis_result",
+        "optim_result",
+        "optim_result_B",
+        "channel_params",
+        "pending_param_change",
+    ):
+        st.session_state[key] = None
+    st.session_state.backward_analysis_confirmed = False
+    st.session_state.optimization_complete = False
+    st.session_state.params_dirty = False
+    st.session_state.activation_ceilings = {}
+    st.session_state.adstock_lambdas = {}
+
+
 st.header("Step 1: Upload your marketing dataset")
 st.markdown(
     """
@@ -37,6 +69,51 @@ uploaded_file = st.file_uploader(
     type=["zip", "csv"],
     help="Accepted: .zip (with CSV + optional XLSX dictionary) or bare .csv. Maximum 200 MB.",
 )
+
+# Already have a dataset loaded? Let the user change just the budget without
+# re-uploading or re-cleaning — the cleaned data and splits are reused as-is.
+if st.session_state.get("upload_complete") and st.session_state.get("cleaned_df") is not None:
+    current = st.session_state.get("confirmed_budget")
+    with st.expander("Update budget only (keep the current dataset)", expanded=False):
+        st.caption(
+            "Use this to re-run with a different budget on the dataset you already "
+            "uploaded. No need to upload again."
+        )
+        if current is not None:
+            st.markdown(f"**Current weekly budget:** ${current:,.0f}")
+        with st.form("update_budget_only"):
+            bo_period = st.radio(
+                "Budget period:",
+                options=["Weekly", "Monthly", "Annual"],
+                index=0,
+                horizontal=True,
+            )
+            bo_amount = st.number_input(
+                "New total budget ($) for the selected period:",
+                min_value=1000,
+                max_value=100_000_000,
+                value=int(current) if current else 831_000,
+                step=1000,
+            )
+            bo_submit = st.form_submit_button("Update budget and re-run pipeline")
+
+        if bo_submit:
+            new_weekly = _to_weekly_budget(bo_amount, bo_period)
+            st.session_state.confirmed_budget = new_weekly
+            st.session_state.confirmed_budget_period = bo_period
+            _invalidate_downstream()
+            st.success(f"Budget updated to a weekly budget of ${new_weekly:,.0f}.")
+            if bo_period != "Weekly":
+                st.caption(
+                    f"Converted {bo_period.lower()} budget ${bo_amount:,.0f} "
+                    f"to ${new_weekly:,.0f}/week."
+                )
+            st.info(
+                "Now open **Backward Analysis** and click **Confirm and run "
+                "optimization** to recompute results with the new budget."
+            )
+            if st.button("Go to Backward Analysis"):
+                st.switch_page("pages/2_backward_analysis.py")
 
 if uploaded_file is not None:
     with st.spinner("Reading your dataset..."):
@@ -109,11 +186,21 @@ if uploaded_file is not None:
             options=profile.target_candidates,
             index=0,
         )
+        budget_period = st.radio(
+            "Budget period:",
+            options=["Weekly", "Monthly", "Annual"],
+            index=0,
+            horizontal=True,
+            help=(
+                "The model optimizes weekly spend. Pick the period your number "
+                "is in — we convert it to a weekly budget automatically."
+            ),
+        )
         budget_input = st.number_input(
-            "Total annual budget ($):",
+            "Total budget ($) for the selected period:",
             min_value=1000,
-            max_value=10_000_000,
-            value=50_000,
+            max_value=100_000_000,
+            value=831_000,
             step=1000,
         )
         confirmed = st.form_submit_button("Confirm and proceed to analysis")
@@ -135,9 +222,23 @@ if uploaded_file is not None:
         st.session_state.schema_confirmed = True
         st.session_state.phase = "analysis"
         st.session_state.confirmed_target = target_col
-        st.session_state.confirmed_budget = budget_input
+        # Model A/B/C, κ and u_c are all fit at weekly scale, so the optimizer
+        # expects a WEEKLY budget. Convert the user's entry to weekly.
+        weekly_budget = _to_weekly_budget(budget_input, budget_period)
+        st.session_state.confirmed_budget = weekly_budget
+        st.session_state.confirmed_budget_period = budget_period
+
+        # Re-confirming invalidates any cached results — otherwise a changed
+        # budget/target is ignored because backward analysis and optimization
+        # are only recomputed when their cached state is empty/unconfirmed.
+        _invalidate_downstream()
 
         st.success("Dataset cleaned and ready.")
+        if budget_period != "Weekly":
+            st.caption(
+                f"Converted {budget_period.lower()} budget ${budget_input:,.0f} "
+                f"to a weekly budget of ${weekly_budget:,.0f} for optimization."
+            )
 
         st.subheader("Download your cleaned files")
         c1, c2, c3 = st.columns(3)

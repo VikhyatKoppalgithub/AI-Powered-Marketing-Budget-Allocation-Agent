@@ -1,5 +1,99 @@
 # Development Log
 
+## 2026-06-10 — Global-optimality cross-check for Model B/C
+
+**Branch:** feature/agent-chart-explain-threshold-fix  
+**Owner:** Meghna Advani  
+**Session goal:** Add an independent empirical confirmation that the enumerated Model B/C allocation is globally optimal.
+
+**What was built:**
+
+- `optimizer.py` `cross_check_global_optimum(...)`: randomly samples activation patterns, locally optimizes each with SLSQP, and confirms none beats the enumerated winner. Returns `{enumerated, best_random, gap, relative_gap, patterns_sampled, passed}`. Diagnostic only — not wired into the pipeline or app.
+- Tests: 2 cases in `tests/test_optimizer_activation.py` (random search ties enumeration within rounding; a below-optimum claim is flagged as not-passed).
+- `docs/optimization.md`: added a "Global-optimality cross-check" subsection.
+
+**What still needs work:**
+
+- Not surfaced in the UI; it's a defense/verification helper run on demand.
+
+**Integration notes:**
+
+- New public function `cross_check_global_optimum` in `src/optimizer.py`. No contract changes.
+
+**How to test it:**
+
+- `pytest tests/test_optimizer_activation.py -q` (13 pass).
+
+## 2026-06-10 — Bug fix: chatbot refused to update thresholds
+
+**Branch:** feature/optimizer  
+**Owner:** Meghna Advani  
+**Session goal:** Fix the chatbot saying "I can't modify thresholds" when asked "can you change the channel thresholds…".
+
+**What was built:**
+
+- `agent.py` `_looks_like_command`: now recognizes polite imperatives ("can you change/set/lower…", "could you…", "would you…") as commands instead of blocking them as questions. Still rejects polite *explanation* requests ("can you explain how…").
+- Bulk "all channels" support: "the channel thresholds to 10M", "all channels", "every channel" parse to the `ALL_CHANNELS` sentinel and apply κ/u_c/λ to every modeled channel. `validate_parameter_change` checks the value against every channel's ceiling/κ and returns an informative message (e.g. "$10M would force those channels permanently OFF").
+- Tests: 5 new cases in `tests/test_agent_runtime_params.py` (polite imperative detected, polite explanation not, bulk parse, bulk-above-ceiling rejected, bulk apply writes all channels).
+
+**What still needs work:**
+
+- LLM fallback does not yet emit the bulk sentinel; regex covers the common phrasings.
+
+**Integration notes:**
+
+- New public symbol `ALL_CHANNELS` exported from `src/agent.py`.
+
+**How to test it:**
+
+- `pytest tests/test_agent_runtime_params.py -q` (30 pass). In the app, ask "can you change the meta_facebook threshold to $20k?" → agent confirms; "yes" re-solves.
+
+## 2026-06-10 — Chatbot explains the results charts
+
+**Branch:** feature/optimizer  
+**Owner:** Meghna Advani  
+**Session goal:** Let the chatbot answer questions about the charts on the Allocation, Curves, and Model Comparison pages.
+
+**What was built:**
+
+- `agent_prompts.py`: `summarize_results_context(session_state)` builds a plain-text digest of the numbers behind every results chart (per-channel recommended vs baseline spend, predicted vs baseline conversions, lift, λ\*, saturation a/b, κ/u_c, and the A/B/C comparison with adstock λ). Returns "" before optimization.
+- `build_system_prompt` gained a `results_context` argument; the digest is appended to the system prompt.
+- `app/app.py`: chat loop now passes `summarize_results_context(st.session_state)` so the agent can explain any on-screen chart in plain English.
+- Tests: 2 new cases in `tests/test_agent_runtime_params.py` (empty before optimization; includes allocation + Model C numbers when present).
+
+**What still needs work:**
+
+- The agent reads numbers, not pixels — it explains the *data* a chart shows, not its visual styling.
+
+**Integration notes:**
+
+- No new session keys; reuses `optim_result`, `optim_result_B/C`, `channel_params`, `activation_thresholds/ceilings`, `adstock_lambdas`.
+
+**How to test it:**
+
+- `pytest tests/test_agent_runtime_params.py -q` (25 pass). In the app, run optimization then ask the chatbot "why is Google Shopping so tall in the allocation chart?".
+
+## 2026-06-10 — Day 1: Model C (adstock + activation) re-solve
+
+**Branch:** feature/optimizer  
+**Owner:** Meghna Advani  
+**Session goal:** Wire Greg's adstock inputs into the optimizer so Model C re-solves with steady-state effective spend.
+
+**What was built:**
+
+- `optimizer.py`: `apply_adstock_steady_state(params, lambdas)` folds carryover into effective curves (`b_eff = b/(1-λ)`); Model C reuses the existing Model B enumeration unchanged (one code path covers A/B/C). λ=0 is a no-op.
+- `optimization_pipeline.py`: `load_model_c_inputs` (reads `channel_params_C.json` + `adstock_lambdas.json`), `run_model_c`; `run_optimization_pipeline` now returns `model_c` too; `apply_optimization_to_session` sets `optim_result_C`, `channel_params_C`, `adstock_lambdas` (Vikhyat's Page 6 keys); `maybe_resolve` re-solves Model C on current λ.
+- `config.yaml`: `model_c` block (paths + enabled flag) with PROVISIONAL caveat.
+- Copied Greg's `channel_params_C.json` + `adstock_lambdas.json` into `data/processed/`.
+- Updated callers in `app/pages/2_backward_analysis.py` and `app/pages/3_allocation.py` to the 5-tuple.
+- Tests: adstock bridge math, λ=0 ≡ Model B, invalid λ rejected, carryover lift, `run_model_c`. Full suite **209 passed, 2 skipped**.
+
+**Smoke result (B=$831k):** A=94,085 · B=94,085 · **C=95,076** conversions (carryover lift on paid_search λ=0.30).
+
+**What still needs work:**
+
+- λ values are PROVISIONAL (Greg refreshes once D2 scale locked; keys frozen, no rework).
+- Optional: global-optimality cross-check (N random-start full SLSQP vs enumerated winner).
 ## 2026-06-10 — Runtime-parameterize kappa in the data layer (v3 plan §2)
 
 **Branch:** feature/data-prep  
@@ -25,6 +119,57 @@
 **How to test it:**
 
 ```bash
+pytest tests/test_optimizer_activation.py tests/test_optimization_pipeline.py -v
+```
+
+## 2026-06-10 — Bug fixes: budget scale, KKT false-fail, UX polish
+
+**Branch:** feature/optimizer  
+**Owner:** Meghna Advani  
+**Session goal:** Fix demo issues surfaced while testing the chat + allocation flow, and add usability polish.
+
+**What was built / fixed:**
+
+- `agent.py`: `detect_parameter_change` now requires an explicit action verb and rejects questions (`_looks_like_command`) — questions like *"if the ceiling is 375K, how did…"* no longer misfire as commands.
+- `backward_analysis.py`: detected budget now scales to `mmm.freq` (weekly = `avg_daily × 7`) instead of `× 260`, so the budget matches the weekly curves and κ/u_c.
+- `app/pages/1_upload_confirm.py`: Weekly/Monthly/Annual budget toggle (auto-converts to weekly); re-confirm now invalidates cached backward-analysis/optimization results (`_invalidate_downstream`) so a changed budget actually propagates; new "Update budget only" panel reuses the loaded dataset without re-upload.
+- `app/pages/2_backward_analysis.py`: fixed `AttributeError` crash from unsafe `st.session_state.backward_analysis_confirmed` access (now `.get(...)`).
+- `optimizer.py` (`verify_kkt`): budget-feasibility/caps tolerance now scales with budget magnitude (`max(tol, 1e-6 * max(1, budget))`), eliminating false **KKT fail** caused by sub-cent float rounding at large budgets. `_format_status` reworded ("optimal allocation found" on pass) to drop the misleading "check solver" text.
+- `app/app.py`: migrated to `st.navigation`; first tab renamed **"app" → "Chatbot"** (and friendlier titles for all tabs). Session defaults now init on every page load.
+- Plain-English "In plain English" expanders added to Backward Analysis, Allocation, Curves, Scenarios, and Model Comparison pages; allocation metrics got tooltips and a KKT-pass gloss.
+
+**How to test it:**
+
+```bash
+pytest tests/test_optimizer.py tests/test_agent_runtime_params.py tests/test_backward_analysis.py -v
+streamlit run app/app.py   # check Chatbot tab name + budget toggle + KKT pass at $831k
+```
+
+## 2026-06-10 — Day 1: Agent runtime parameters (κ/λ/B/u_c) + re-solve
+
+**Branch:** feature/optimizer  
+**Owner:** Meghna Advani (assisting Piyush — `agent.py`)  
+**Session goal:** Make κ/λ/B/u_c runtime-tunable from chat and re-solve (stakeholder mod v3, parameterization scope).
+
+**What was built:**
+
+- `agent.py`: `parse_parameter_change` (regex) + Claude fallback (`detect_parameter_change`), `validate_parameter_change`, `apply_parameter_change`, confirm/cancel helpers, `process_parameter_message` coordinator; `modify_constraints` intent keywords
+- `agent_prompts.py`: `modify_constraints` + `constraint_change_explained` workflow prompts
+- `optimization_pipeline.py`: `maybe_resolve()` re-solves Models A/B from session-state params
+- `app/app.py`: parameter branch in chat loop + `params_dirty`/`pending_param_change`/ceilings/lambdas session defaults
+- Tests: `tests/test_agent_runtime_params.py` (20); full suite 200 passed, 2 skipped
+
+**What still needs work:**
+
+- λ override triggers Model C refit — wire when Greg ships `channel_params_C` + holdout λ
+- Vikhyat: optional "current parameters" caption reads `activation_thresholds` / `adstock_lambdas` / `confirmed_budget`
+
+**How to test it:**
+
+```bash
+pytest tests/test_agent_runtime_params.py -v
+```
+
 pytest tests/test_weekly_stats.py -v
 python src/weekly_stats.py
 ```

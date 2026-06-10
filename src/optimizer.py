@@ -50,10 +50,17 @@ class ActivationSolveResult:
 
 
 def _format_status(kkt_status: str, success: bool, message: str) -> str:
-    """Human-readable status for Streamlit (page 3 caption)."""
-    solver = "converged" if success else "check solver"
+    """Human-readable status for Streamlit (page 3 caption).
+
+    Multistart keeps the best point found, so once KKT verifies optimality the
+    per-start SLSQP exit flag/message ("Positive directional derivative for
+    linesearch", etc.) is not meaningful to the user and only looks alarming.
+    """
+    if kkt_status == "pass":
+        return "KKT pass · optimal allocation found"
+    solver = "solver converged" if success else "solver did not fully converge"
     detail = message.strip() if message else ""
-    base = f"KKT {kkt_status} · solver {solver}"
+    base = f"KKT {kkt_status} · {solver}"
     return f"{base} ({detail})" if detail else base
 
 
@@ -154,8 +161,13 @@ def verify_kkt(
         lam = None
 
     spend = float(np.sum(x))
+    # Dollar-scale slack for feasibility. A fixed 1e-9 is tighter than the
+    # rounding noise of summing spends at $100k+ budgets, which flags optimal
+    # allocations as "over budget". Scale the slack with budget magnitude
+    # (≈$0.83 on an $831k budget) while keeping the small tol for tiny budgets.
+    budget_tol = max(tol, 1e-6 * max(1.0, budget))
     checks: dict[str, Any] = {
-        "budget_feasible": spend <= budget + tol,
+        "budget_feasible": spend <= budget + budget_tol,
         "non_negative": bool(np.all(x >= -tol)),
         "spend_total": spend,
         "budget": budget,
@@ -165,7 +177,7 @@ def verify_kkt(
         cap_ok = True
         for i, ch in enumerate(channels):
             cap = caps.get(ch)
-            if cap is not None and x[i] > cap + tol:
+            if cap is not None and x[i] > cap + budget_tol:
                 cap_ok = False
         checks["caps_feasible"] = cap_ok
 
@@ -492,6 +504,72 @@ def solve_activation_kappa_sweep(
     return results
 
 
+def cross_check_global_optimum(
+    params: dict,
+    budget: float,
+    channels: list[str],
+    thresholds: dict[str, float],
+    ceilings: dict[str, float],
+    enumerated_conversions: float,
+    *,
+    n_starts: int = 64,
+    seed: int = 0,
+    tol: float | None = None,
+    max_iter: int | None = None,
+) -> dict[str, Any]:
+    """Empirically confirm the enumerated Model B/C winner is globally optimal.
+
+    The activation feasible set ({0} ∪ [κ, u] per channel) is non-convex, so we
+    prove optimality by exhaustive enumeration. This is an *independent* sanity
+    check: instead of trying all 32 patterns, randomly sample activation patterns,
+    locally optimize each with SLSQP, and confirm none beats the enumerated
+    objective. A pass means "random multi-start never found a better allocation".
+
+    Returns a small report dict; ``passed`` is True when the enumerated solution
+    is at least as good as the best random allocation (within rounding slack).
+    """
+    rng = np.random.default_rng(seed)
+    n = len(channels)
+    best_random = 0.0  # all-OFF is always feasible and yields 0 conversions
+    patterns_sampled = 0
+
+    for _ in range(max(n_starts, 0)):
+        on_mask = tuple(bool(rng.integers(0, 2)) for _ in range(n))
+        if not _pattern_is_feasible(channels, on_mask, budget, thresholds, ceilings):
+            continue
+        ch_bounds = _bounds_for_activation_pattern(
+            channels, budget, on_mask, thresholds, ceilings
+        )
+        assert ch_bounds is not None
+        sub = solve(
+            params,
+            budget,
+            channels,
+            channel_bounds=ch_bounds,
+            n_starts=2,
+            tol=tol,
+            max_iter=max_iter,
+            seed=seed + patterns_sampled + 1,
+        )
+        patterns_sampled += 1
+        if sub.predicted_conversions > best_random:
+            best_random = sub.predicted_conversions
+
+    gap = float(enumerated_conversions) - best_random
+    denom = max(abs(float(enumerated_conversions)), 1e-9)
+    # Slack: a conversion or 1e-6 of the objective, whichever is larger.
+    slack = max(1.0, 1e-6 * denom)
+    return {
+        "enumerated_conversions": float(enumerated_conversions),
+        "best_random_conversions": float(best_random),
+        "gap": gap,
+        "relative_gap": gap / denom,
+        "patterns_sampled": patterns_sampled,
+        "n_starts": int(n_starts),
+        "passed": bool(float(enumerated_conversions) >= best_random - slack),
+    }
+
+
 def load_activation_from_config(config: dict | None = None) -> tuple[dict[str, float], dict[str, float]]:
     """Load kappa and u_c dicts from config activation block."""
     cfg = config or load_config()
@@ -508,6 +586,31 @@ def load_activation_from_config(config: dict | None = None) -> tuple[dict[str, f
     if missing_c:
         raise KeyError(f"Missing activation.ceilings for: {sorted(missing_c)}")
     return thresholds, ceilings
+
+
+def apply_adstock_steady_state(
+    params: dict,
+    lambdas: dict[str, float],
+) -> dict:
+    """Fold per-channel adstock carryover into effective saturation curves.
+
+    Model C evaluates ``f_c(s_c / (1 - λ_c))`` at steady state. Because the
+    decision variable is raw spend ``s_c``, dividing it by ``(1 - λ_c)`` inside
+    ``a·(1 - exp(-b·x))`` is identical to keeping raw spend and using a steeper
+    rate ``b_eff = b / (1 - λ_c)``. So Model C is just Model A/B run on these
+    effective curves — no change to the solver, gradient, KKT, or shadow price.
+
+    λ = 0 is a no-op, so the same params reduce to Model A/B exactly.
+    """
+    effective: dict = {}
+    for ch, p in params.items():
+        lam = float(lambdas.get(ch, 0.0))
+        if not (0.0 <= lam < 1.0):
+            raise ValueError(
+                f"Channel '{ch}': adstock lambda must be in [0, 1), got {lam}"
+            )
+        effective[ch] = {"a": float(p["a"]), "b": float(p["b"]) / (1.0 - lam)}
+    return effective
 
 
 def load_params(path: str | Path) -> dict:

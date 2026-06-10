@@ -1,8 +1,8 @@
 # Optimization
 
 > **Owner:** Meghna Advani (draft by Ana)  
-> **Last updated:** 2026-06-02  
-> **Status:** Draft
+> **Last updated:** 2026-06-10  
+> **Status:** In Progress
 
 ## Objective (plain English)
 
@@ -31,4 +31,16 @@ The objective is smooth nonlinear sums of exponentials; SLSQP in SciPy handles b
 
 λ* is the extra conversions you’d get from one more dollar of total budget at the optimum — the “value of loosening the budget constraint by $1.”
 
-*Implementation:* `src/optimizer.py` (stub — Meghna).
+## Models A / B / C (one solver, three configurations)
+
+- **Model A (base):** the objective above — concave, so a single SLSQP solve is globally optimal.
+- **Model B (activation):** each channel is OFF ($0) or ON (spend in [κ, u]). The feasible set is non-convex, so we **enumerate all 2⁵ = 32 on/off patterns**, solve a convex subproblem per feasible pattern, and take the best. Global optimum = exhaustive over the discrete part × convex (KKT-verified) inside each.
+- **Model C (adstock + activation):** carryover is geometric; at steady state effective spend is `s/(1−λ)`. Evaluating `f_c(s/(1−λ))` is algebraically identical to keeping raw spend and using a steeper rate `b_eff = b/(1−λ)`. So Model C is **Model B run on adstock-adjusted curves** — the same enumeration, gradient, KKT, and shadow-price code path. λ = 0 reduces exactly to Models A/B.
+
+> **Provisional values.** Greg's λ are holdout-selected at portfolio scale, where carryover is weak (only `google_paid_search` λ=0.30; others 0.0) and Model C does not beat Model A. Keys/format are frozen, so refreshing the numbers needs no optimizer change.
+
+*Implementation:* `src/optimizer.py` (`solve`, `solve_with_activation`, `apply_adstock_steady_state`); orchestration in `src/optimization_pipeline.py` (`run_model_b`, `run_model_c`).
+
+### Global-optimality cross-check
+
+Enumeration is globally optimal *by construction* (exhaustive over the 32 discrete patterns × convex inside each). As an independent empirical confirmation, `cross_check_global_optimum(...)` attacks the same non-convex problem a different way: it randomly samples activation patterns, locally optimizes each with SLSQP, and verifies the best random allocation never beats the enumerated winner. It returns `{enumerated, best_random, gap, passed}`. This is a diagnostic helper — it is not in the live pipeline or the app.

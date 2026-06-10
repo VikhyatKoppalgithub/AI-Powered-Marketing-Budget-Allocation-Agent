@@ -285,6 +285,23 @@ AGENT_WORKFLOW_PROMPTS = {
         "→ Each additional $1 of budget yields approximately {lambda_budget:.2f} more conversions.\n\n"
         "Shall I show you the channel-by-channel breakdown?"
     ),
+    "modify_constraints": (
+        "You can change optimization parameters in plain language and I'll re-solve:\n"
+        "- **Activation threshold (κ)** — e.g. \"set Google PMax activation to $20k\"\n"
+        "- **Channel ceiling (u_c)** — e.g. \"cap Meta Facebook at $400k\"\n"
+        "- **Adstock decay (λ)** — e.g. \"set Instagram decay to 0.5\"\n"
+        "- **Total budget (B)** — e.g. \"what happens at half the budget?\"\n\n"
+        "After a change I re-run Models A and B and explain which channels turned "
+        "ON or OFF and how the budget shadow price moved. I'll confirm the exact "
+        "value with you before re-optimizing."
+    ),
+    "constraint_change_explained": (
+        "Re-solved with your updated parameters.\n\n"
+        "{change_summary}\n\n"
+        "**Active channels now:** {active_channels}\n"
+        "**Budget shadow price (λ*):** {lambda_budget:.4f}\n\n"
+        "Want me to compare this against the previous allocation?"
+    ),
     "out_of_scope_redirect": (
         "That's outside what I'm set up to help with — I'm a marketing budget "
         "optimization agent.\n\n"
@@ -500,10 +517,124 @@ def format_company_context_block(company_context: dict | None) -> str:
     return "\n".join(lines)
 
 
+def _result_get(obj: Any, attr: str, default=None):
+    if obj is None:
+        return default
+    if hasattr(obj, attr):
+        return getattr(obj, attr)
+    if isinstance(obj, dict):
+        return obj.get(attr, default)
+    return default
+
+
+def summarize_results_context(session_state: Any) -> str:
+    """Plain-text digest of the numbers behind every results chart.
+
+    Lets the chatbot explain the Allocation, Curves, and Model Comparison charts
+    by reading the underlying session-state values (it cannot see images, but it
+    can explain the data the charts visualize). Returns "" before optimization.
+    """
+    def sget(key, default=None):
+        if hasattr(session_state, "get"):
+            try:
+                return session_state.get(key, default)
+            except TypeError:
+                pass
+        return getattr(session_state, key, default)
+
+    optim = sget("optim_result")
+    if optim is None:
+        return ""
+
+    lines: list[str] = [
+        "CURRENT RESULTS ON SCREEN — explain any of these charts if the user asks. "
+        "You cannot see the images, but these are the exact numbers they show:",
+    ]
+
+    # --- Allocation page (bar chart + lift) ---
+    alloc = _result_get(optim, "allocation", {}) or {}
+    baseline = _result_get(optim, "baseline_allocation", {}) or {}
+    pred = _result_get(optim, "predicted_conversions", 0.0)
+    base_conv = _result_get(optim, "baseline_conversions", 0.0)
+    lift = _result_get(optim, "lift_pct", 0.0)
+    lam = _result_get(optim, "lambda_budget", 0.0)
+    total = _result_get(optim, "total_spent", sum(alloc.values()) if alloc else 0.0)
+    lines.append(
+        "\n[Allocation page — 'Recommended Allocation' bars + 'Where the Agent Moved Money']\n"
+        f"Total budget allocated: ${total:,.0f}. Predicted conversions: {pred:,.0f} "
+        f"vs baseline {base_conv:,.0f} (lift {lift:+.1f}%). "
+        f"Budget shadow price λ*={lam:.4f} (extra conversions per extra $1)."
+    )
+    if alloc:
+        rows = []
+        for ch, spend in alloc.items():
+            b = baseline.get(ch)
+            b_txt = f", baseline ${b:,.0f}" if b is not None else ""
+            rows.append(f"  - {ch}: ${spend:,.0f}{b_txt}")
+        lines.append("Recommended spend per channel:\n" + "\n".join(rows))
+
+    # --- Saturation curves page ---
+    params = sget("channel_params") or {}
+    if params:
+        rows = []
+        for ch, p in params.items():
+            a = float(p.get("a", 0.0))
+            b = float(p.get("b", 0.0))
+            rows.append(f"  - {ch}: a={a:,.0f} (max conversions headroom), b={b:.2e} (saturation speed)")
+        lines.append(
+            "\n[Saturation Curves page — f(spend)=a·(1−e^(−b·spend))]\n"
+            "Higher a = more total room to grow; higher b = saturates (flattens) faster.\n"
+            + "\n".join(rows)
+        )
+
+    # --- Activation thresholds / ceilings ---
+    kappa = sget("activation_thresholds") or {}
+    ceilings = sget("activation_ceilings") or {}
+    if kappa:
+        rows = [
+            f"  - {ch}: κ(min if ON)=${kappa[ch]:,.0f}"
+            + (f", ceiling u=${ceilings[ch]:,.0f}" if ch in ceilings else "")
+            for ch in kappa
+        ]
+        lines.append("\n[Activation rules (Models B/C)]\n" + "\n".join(rows))
+
+    # --- Model comparison page (A vs B vs C) ---
+    model_b = sget("optim_result_B")
+    model_c = sget("optim_result_C")
+    lambdas = sget("adstock_lambdas") or {}
+
+    def _active(res):
+        a = _result_get(res, "allocation", {}) or {}
+        return [c for c, v in a.items() if v > 1e-6]
+
+    comp = ["\n[Model Comparison page — A vs B vs C]"]
+    comp.append(
+        f"  Model A (base): {pred:,.0f} conversions, λ*={lam:.4f}."
+    )
+    if model_b is not None:
+        comp.append(
+            f"  Model B (activation κ): {_result_get(model_b,'predicted_conversions',0.0):,.0f} conversions; "
+            f"ON: {', '.join(_active(model_b)) or 'none'}. Channels below their κ value are turned OFF ($0)."
+        )
+    if model_c is not None:
+        nonzero = {c: v for c, v in lambdas.items() if v}
+        carry = ", ".join(f"{c} λ={v:.2f}" for c, v in nonzero.items()) or "all ≈0 (weak carryover)"
+        comp.append(
+            f"  Model C (adstock+activation): {_result_get(model_c,'predicted_conversions',0.0):,.0f} conversions; "
+            f"ON: {', '.join(_active(model_c)) or 'none'}. Carryover λ: {carry}. "
+            "Carryover makes effective spend s/(1−λ), so high-λ channels do more per raw dollar."
+        )
+    if len(comp) > 1:
+        lines.append("\n".join(comp))
+
+    return "\n".join(lines)
+
+
 def build_system_prompt(
     phase: str,
     turn_index: int,
     company_context: dict | None = None,
+    results_context: str | None = None,
 ) -> str:
     """Assemble the complete Claude system prompt for a given phase and turn."""
     escalation = (
@@ -526,5 +657,7 @@ def build_system_prompt(
             + "\n".join(f"- {h}" for h in company_context["channel_technique_map"])
         )
         parts.append(channel_hints)
+    if results_context:
+        parts.append(results_context)
     parts.extend([escalation, phase_prompt])
     return "\n\n".join(p for p in parts if p)

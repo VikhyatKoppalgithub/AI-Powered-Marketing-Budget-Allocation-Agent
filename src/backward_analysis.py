@@ -28,6 +28,17 @@ logger = logging.getLogger(__name__)
 # Cap scatter points sent to Plotly — full-row charts freeze Streamlit in the browser.
 CHART_SAMPLE_SIZE = 2000
 
+# Days per modeling period. The detected budget must use the SAME period as the
+# fitted MMM curves and Ana's κ/u_c (config mmm.freq), or budget and thresholds
+# end up on different scales (e.g. annual $3.5M budget vs weekly $375K ceilings).
+_PERIOD_DAYS = {"daily": 1.0, "weekly": 7.0, "monthly": 365.0 / 12.0}
+
+
+def _budget_period_days(config: dict) -> float:
+    """Days in one modeling period, driven by config ``mmm.freq``."""
+    freq = str(config.get("mmm", {}).get("freq", "monthly")).lower()
+    return _PERIOD_DAYS.get(freq, 365.0 / 12.0)
+
 TARGET_PRIORITY = [
     "y",
     "ALL_PURCHASES",
@@ -368,7 +379,12 @@ def run_backward_analysis(
     spend_cols = [c for c in channels if c in df.columns]
     if spend_cols:
         avg_daily = df[spend_cols].fillna(0).sum(axis=1).mean()
-        result.detected_budget = user_budget if user_budget is not None else float(avg_daily * 260)
+        period_days = _budget_period_days(config)
+        result.detected_budget = (
+            user_budget
+            if user_budget is not None
+            else float(avg_daily * period_days)
+        )
     else:
         result.detected_budget = user_budget or float(config["optimization"]["default_budget"])
 

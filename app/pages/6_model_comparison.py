@@ -20,6 +20,13 @@ Session-state contract (set by Meghna's optimizer page or app.py):
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 import streamlit as st
 
 from src.explainer import (
@@ -32,9 +39,6 @@ from src.explainer import (
     plot_shadow_price_trend,
 )
 
-st.set_page_config(
-    page_title="Model Comparison", page_icon="🔬", layout="wide"
-)
 st.title("🔬 Model Comparison: A vs B vs C")
 
 st.markdown(
@@ -43,6 +47,22 @@ st.markdown(
     "the conversion cost of activation, the value of the budget under each "
     "model, and the impact of carryover."
 )
+
+with st.expander("🟢 In plain English — what is this page?"):
+    st.markdown(
+        """
+We built three versions of the model, each a bit more realistic:
+
+- **Model A — basic:** just split the budget for the most conversions.
+- **Model B — on/off rules:** a channel must get a **minimum** amount to be
+  worth "turning on", otherwise it stays at $0 (no tiny, wasteful spends).
+- **Model C — carryover (adstock):** today's spend keeps working for a while
+  *after* you spend it, not just on the same day.
+
+This page compares what each one recommends, so you can see how those
+real-world rules change the plan.
+"""
+    )
 
 # -----------------------------------------------------------------------------
 # Pull models + metadata from session state

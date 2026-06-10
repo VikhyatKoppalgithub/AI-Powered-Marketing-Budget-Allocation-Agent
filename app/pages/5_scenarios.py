@@ -12,6 +12,13 @@ Depends on session state keys:
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 import numpy as np
 import pandas as pd
 import plotly.express as px
@@ -19,9 +26,6 @@ import streamlit as st
 
 from src.explainer import plot_sensitivity_tornado, run_sensitivity
 
-st.set_page_config(
-    page_title="Scenario Analysis", page_icon="🎯", layout="wide"
-)
 st.title("🎯 Sensitivity & Scenario Analysis")
 
 st.markdown(
@@ -29,6 +33,21 @@ st.markdown(
     "These scenarios test the robustness of the allocation strategy and "
     "demonstrate the agent's behaviour under stakeholder-driven modifications."
 )
+
+with st.expander("🟢 In plain English — what is this page?"):
+    st.markdown(
+        """
+This page asks *"what if your budget were different?"*
+
+It re-runs the recommendation across a range of budgets, so you can see:
+
+- which channels keep **absorbing money productively** as the budget grows, and
+- which ones **saturate** and stop being worth more.
+
+It's useful for planning a budget increase — or for defending the plan if your
+budget gets cut.
+"""
+    )
 
 optim_result = st.session_state.get("optim_result")
 channel_params = st.session_state.get("channel_params")

@@ -121,6 +121,17 @@ adstock:
 mmm:
   freq: weekly
 
+# Task 2 adstock (Model C). Greg's holdout-selected λ + curves fit on effective
+# (adstocked) spend. The optimizer evaluates f(s/(1-λ)) via b_eff = b/(1-λ),
+# reusing the Model B activation enumeration (one code path covers A/B/C).
+# NOTE: values are PROVISIONAL — at portfolio scale carryover is weak and Model C
+# does not beat Model A. Greg refreshes the JSONs once D2 scale is locked; keys
+# stay identical so no rework here.
+model_c:
+  enabled: true
+  channel_params_path: "data/processed/channel_params_C.json"  # {channel: {a, b}}
+  lambdas_path: "data/processed/adstock_lambdas.json"          # {channel: lambda}
+
 # Task 1 activation (Models B/C). Values from Ana Day-0 handoff (weekly train resample).
 activation:
   thresholds:

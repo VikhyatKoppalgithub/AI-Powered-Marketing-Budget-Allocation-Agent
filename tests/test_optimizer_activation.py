@@ -1,10 +1,14 @@
 """Tests for Model B activation enumeration in optimizer.py."""
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from src.optimizer import (
     ActivationSolveResult,
+    apply_adstock_steady_state,
+    cross_check_global_optimum,
     solve,
     solve_activation_kappa_sweep,
     solve_with_activation,
@@ -137,3 +141,107 @@ def test_model_a_vs_b_at_portfolio_scale(thresholds, ceilings, three_channel_par
         seed=5,
     )
     assert act.result.predicted_conversions <= base.predicted_conversions + 1e-6
+
+
+# --------------------------------------------------------------------------- #
+# Model C — adstock steady-state bridge
+# --------------------------------------------------------------------------- #
+def test_adstock_steady_state_scales_b(three_channel_params):
+    lambdas = {"strong": 0.5, "weak": 0.0, "mid": 0.25}
+    eff = apply_adstock_steady_state(three_channel_params, lambdas)
+    # b_eff = b / (1 - lambda); a unchanged
+    assert eff["strong"]["a"] == three_channel_params["strong"]["a"]
+    assert math.isclose(eff["strong"]["b"], three_channel_params["strong"]["b"] / 0.5)
+    assert math.isclose(eff["mid"]["b"], three_channel_params["mid"]["b"] / 0.75)
+
+
+def test_adstock_lambda_zero_is_noop(three_channel_params):
+    lambdas = {ch: 0.0 for ch in three_channel_params}
+    eff = apply_adstock_steady_state(three_channel_params, lambdas)
+    for ch in three_channel_params:
+        assert eff[ch]["a"] == three_channel_params[ch]["a"]
+        assert eff[ch]["b"] == three_channel_params[ch]["b"]
+
+
+def test_adstock_rejects_invalid_lambda(three_channel_params):
+    with pytest.raises(ValueError):
+        apply_adstock_steady_state(three_channel_params, {"strong": 1.0, "weak": 0.0, "mid": 0.0})
+
+
+def test_model_c_equals_model_b_when_lambda_zero(thresholds, ceilings, three_channel_params):
+    """λ = 0 ⇒ Model C is identical to Model B on the same curves."""
+    channels = list(thresholds.keys())
+    budget = 40_000.0
+    model_b = solve_with_activation(
+        three_channel_params, budget, channels, thresholds, ceilings, n_starts=5, seed=7
+    )
+    eff = apply_adstock_steady_state(three_channel_params, {ch: 0.0 for ch in channels})
+    model_c = solve_with_activation(
+        eff, budget, channels, thresholds, ceilings, n_starts=5, seed=7
+    )
+    assert math.isclose(
+        model_c.result.predicted_conversions,
+        model_b.result.predicted_conversions,
+        rel_tol=1e-9,
+    )
+
+
+def test_model_c_carryover_lifts_conversions(thresholds, ceilings, three_channel_params):
+    """Positive λ makes effective curves steeper ⇒ ≥ conversions at same budget."""
+    channels = list(thresholds.keys())
+    budget = 60_000.0
+    base = solve_with_activation(
+        three_channel_params, budget, channels, thresholds, ceilings, n_starts=5, seed=8
+    )
+    eff = apply_adstock_steady_state(
+        three_channel_params, {"strong": 0.5, "weak": 0.0, "mid": 0.3}
+    )
+    carry = solve_with_activation(
+        eff, budget, channels, thresholds, ceilings, n_starts=5, seed=8
+    )
+    assert (
+        carry.result.predicted_conversions
+        >= base.result.predicted_conversions - 1e-6
+    )
+
+
+# --------------------------------------------------------------------------- #
+# cross_check_global_optimum — random multi-start never beats enumeration
+# --------------------------------------------------------------------------- #
+def test_cross_check_confirms_enumeration_is_global(thresholds, ceilings, three_channel_params):
+    channels = list(thresholds.keys())
+    budget = 60_000.0
+    winner = solve_with_activation(
+        three_channel_params, budget, channels, thresholds, ceilings, n_starts=5, seed=3
+    )
+    report = cross_check_global_optimum(
+        three_channel_params,
+        budget,
+        channels,
+        thresholds,
+        ceilings,
+        winner.result.predicted_conversions,
+        n_starts=64,
+        seed=3,
+    )
+    assert report["passed"]
+    # With 64 samples over 8 patterns, random search should also FIND the optimum.
+    assert report["best_random_conversions"] <= report["enumerated_conversions"] + 1.0
+    assert report["gap"] <= 1.0  # ties the enumerated winner (within rounding)
+    assert report["patterns_sampled"] > 0
+
+
+def test_cross_check_flags_a_too_good_claim(thresholds, ceilings, three_channel_params):
+    channels = list(thresholds.keys())
+    budget = 60_000.0
+    winner = solve_with_activation(
+        three_channel_params, budget, channels, thresholds, ceilings, n_starts=5, seed=1
+    )
+    # Claim far above the true optimum: random search can't beat it, so it "passes"
+    # — but a claim BELOW what random finds must fail.
+    inflated_low = winner.result.predicted_conversions - 10_000.0
+    report = cross_check_global_optimum(
+        three_channel_params, budget, channels, thresholds, ceilings,
+        inflated_low, n_starts=64, seed=1,
+    )
+    assert not report["passed"]
