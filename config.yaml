@@ -132,7 +132,7 @@ model_c:
   channel_params_path: "data/processed/channel_params_C.json"  # {channel: {a, b}}
   lambdas_path: "data/processed/adstock_lambdas.json"          # {channel: lambda}
 
-# Task 1 activation (Models B/C). Values from Ana Day-0 handoff (weekly train resample).
+# Task 1 activation (Models B/C). Values from weekly handoff (weekly train resample).
 activation:
   thresholds:
     google_paid_search: 18000
