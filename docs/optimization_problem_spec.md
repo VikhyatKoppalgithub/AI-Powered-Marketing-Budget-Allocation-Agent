@@ -323,7 +323,7 @@ Users still override via `confirmed_budget` in Streamlit. See **§13** for activ
 
 ## 13. Stakeholder mod — config values (locked Day 1)
 
-Ana Day-0 handoff (weekly train resample):
+Weekly handoff (weekly train resample):
 
 | Field | Value |
 |---|---|

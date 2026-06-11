@@ -44,6 +44,9 @@ AI-Powered-Marketing-Budget-Allocation-Agent/
 ├── notebooks/
 │   ├── 01_eda.ipynb
 │   └── 02_preprocessing.ipynb
+├── report/
+│   ├── final_report.tex
+│   └── final_report.docx
 ├── src/
 │   ├── data_prep.py
 │   ├── weekly_stats.py
@@ -118,7 +121,7 @@ Expected: Ana + optimizer tests pass; remaining stub tests skipped. Coverage tar
 | From | To | Interface |
 |------|-----|-----------|
 | Ana | Gregory | `data/processed/mmm_train.csv` |
-| Ana | Greg + Meghna | `data/processed/ana_day0_handoff.json` + `weekly_stats.json` (written automatically by `run_pipeline()`; printable report via `python src/weekly_stats.py`) |
+| Ana | Greg + Meghna | `data/processed/weekly_handoff.json` + `weekly_stats.json` (written automatically by `run_pipeline()`; printable report via `python src/weekly_stats.py`) |
 | Ana | Validation | `data/processed/mmm_test.csv` |
 | Ana | Meghna | `BackwardAnalysisResult` (confirmed objective + constraints) |
 | Ana | Piyush | `build_system_prompt(phase, turn_index)` |

@@ -1,5 +1,25 @@
 # Development Log
 
+## 2026-06-11 — Rename handoff JSON (remove personal name from filename)
+
+**Branch:** feature/data-prep  
+**Owner:** Ana Valderrama  
+**Session goal:** Rename `ana_day0_handoff.json` to a neutral team filename and update all references.
+
+**What was built:**
+
+- Renamed output file to `data/processed/weekly_handoff.json`
+- Updated default path in `src/weekly_stats.py`, comment in `src/data_prep.py`, `config.yaml`, README integration contract, and `docs/data_pipeline.md`
+
+**Integration notes:**
+
+- Teammates reading uc_ceilings / B_portfolio from the handoff should use `weekly_handoff.json` (same schema, new name).
+
+**How to test it:**
+
+- `pytest tests/test_weekly_stats.py -q`
+- `python src/weekly_stats.py` → confirms `weekly_handoff.json` written
+
 ## 2026-06-10 — Global-optimality cross-check for Model B/C
 
 **Branch:** feature/agent-chart-explain-threshold-fix  
@@ -184,7 +204,7 @@ python src/weekly_stats.py
 
 - `src/weekly_stats.py` — Ana's permanent data-layer module alongside `data_prep.py`, owning `compute_weekly_stats()` (per-channel weekly min/median/max, B_raw, train/holdout week counts, weekly y mean), `compute_uc_ceilings()` (u_c = 1.5 × max weekly spend per channel, flags any channel where u_c < κ), `scale_decision()` (D2 mid-market scaling), `write_handoff()`, and the `KAPPA` / `KAPPA_SUM` / `B_TARGET` / `B_SCENARIO_ACTIVATION` constants
 - `run_pipeline()` integration — every pipeline run automatically computes weekly stats and u_c ceilings and writes the handoff JSON; return dict includes `weekly_stats`, `uc_result`, `handoff`, `verification`
-- Handoff outputs — `data/processed/ana_day0_handoff.json` with `uc_ceilings`, `B_portfolio` ($831,142/wk), `B_scenario_activation` ($90,000), κ map, and per-channel weekly stats for Meghna and Greg; plus `weekly_stats.json` and `weekly_scaled_spend.csv` (when scale factor < 1)
+- Handoff outputs — `data/processed/weekly_handoff.json` with `uc_ceilings`, `B_portfolio` ($831,142/wk), `B_scenario_activation` ($90,000), κ map, and per-channel weekly stats for Meghna and Greg; plus `weekly_stats.json` and `weekly_scaled_spend.csv` (when scale factor < 1)
 - `verify_pipeline_outputs()` — column presence (DATE_DAY, 5 spend, 5 adstock, y), >5% null flags, and all-USD currency checks on pipeline outputs
 - CLI report — `python src/weekly_stats.py` prints verification, weekly stats table, u_c ceiling table, Portfolio B recommendation, scale decision, and adstock ownership boundary
 - Tests — `tests/test_weekly_stats.py`: 15 tests on synthetic DataFrames, all passing
@@ -213,7 +233,7 @@ python src/weekly_stats.py
 **What still needs work:**
 
 - Model C (adstock + activation) — blocked on Greg `channel_params_C` + `adstock_lambdas`
-- Merge Ana `feature/data-prep` when on team remote for `ana_day0_handoff.json` auto-generation
+- Merge Ana `feature/data-prep` when on team remote for `weekly_handoff.json` auto-generation
 
 **How to test it:**
 

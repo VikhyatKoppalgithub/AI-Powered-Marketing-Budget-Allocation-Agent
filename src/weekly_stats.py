@@ -8,7 +8,7 @@ automatically after the train/test split:
 - compute_weekly_stats()  — per-channel weekly min/median/max, B_raw, week counts
 - compute_uc_ceilings()   — u_c = 1.5 x max weekly spend, kappa comparison
 - scale_decision()        — D2 mid-market scaling recommendation
-- write_handoff()         — data/processed/ana_day0_handoff.json (+ weekly_stats.json)
+- write_handoff()         — data/processed/weekly_handoff.json (+ weekly_stats.json)
 - DEFAULT_KAPPA / KAPPA_SUM / B_TARGET / B_SCENARIO_ACTIVATION constants
 
 DEFAULT_KAPPA holds the professor's example activation thresholds
@@ -238,7 +238,7 @@ def write_handoff(
     kappa: dict[str, float] | None = None,
 ) -> dict:
     """
-    Write data/processed/ana_day0_handoff.json (+ weekly_stats.json and,
+    Write data/processed/weekly_handoff.json (+ weekly_stats.json and,
     when scaling applies, weekly_scaled_spend.csv) for Greg and Meghna.
 
     `kappa` defaults to DEFAULT_KAPPA; the JSON's "kappa" key reflects
@@ -252,7 +252,7 @@ def write_handoff(
         "spend_cols": [],
     }
     decision = scale_decision(weekly_stats["B_raw"], kappa)
-    out_path = out_path or resolve_project_path("data/processed/ana_day0_handoff.json")
+    out_path = out_path or resolve_project_path("data/processed/weekly_handoff.json")
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     handoff = {
@@ -429,7 +429,7 @@ def main(raw_path: str | None = None) -> dict:
     print_portfolio_b(res["weekly_stats"]["B_raw"])
     print_scale_decision(scale_decision(res["weekly_stats"]["B_raw"]))
     print_adstock_ownership()
-    print("=== Handoff written -> data/processed/ana_day0_handoff.json ===")
+    print("=== Handoff written -> data/processed/weekly_handoff.json ===")
     return res["handoff"]
 
 

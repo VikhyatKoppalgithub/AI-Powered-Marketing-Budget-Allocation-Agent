@@ -493,7 +493,7 @@ def run_pipeline(config_path: str = "config.yaml", raw_path: str | None = None) 
     train_bytes = export_processed(train_df, str(resolve_project_path(config["data"]["train_path"])))
     test_bytes = export_processed(test_df, str(resolve_project_path(config["data"]["test_path"])))
 
-    # Weekly handoff for Greg and Meghna (ana_day0_handoff.json).
+    # Weekly handoff (weekly_handoff.json).
     # Imported here to avoid a circular import (weekly_stats imports load_config).
     from src.weekly_stats import (
         compute_uc_ceilings,

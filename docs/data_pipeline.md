@@ -17,7 +17,7 @@
 9. **Adstock** — Geometric decay per channel per series; adds `{channel}_adstock`.
 10. **Aggregate channels** — `google_spend`, `meta_spend`; target → `y`.
 11. **Export + split** — Write `mmm_ready.csv`, EDA report, `mmm_train.csv` / `mmm_test.csv`.
-12. **Weekly handoff** — Compute weekly spend stats and u_c ceilings (1.5 × max weekly spend per channel), then write `ana_day0_handoff.json` and `weekly_stats.json` for Greg (weekly MMM fit) and Meghna (budget B, ceilings, κ activation thresholds). Logic lives in `src/weekly_stats.py` and runs automatically inside `run_pipeline()`; `python src/weekly_stats.py` prints the same numbers as a report.
+12. **Weekly handoff** — Compute weekly spend stats and u_c ceilings (1.5 × max weekly spend per channel), then write `weekly_handoff.json` and `weekly_stats.json` for the MMM fit (weekly scale), optimizer budget $B$, ceilings, and κ activation thresholds. Logic lives in `src/weekly_stats.py` and runs automatically inside `run_pipeline()`; `python src/weekly_stats.py` prints the same numbers as a report.
 
 ## Train/test split rationale
 
