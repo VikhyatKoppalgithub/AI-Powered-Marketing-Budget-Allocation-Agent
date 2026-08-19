@@ -54,9 +54,67 @@ def _invalidate_downstream() -> None:
 
 
 st.header("Step 1: Upload your marketing dataset")
+
+# -----------------------------------------------------------------------------
+# Live-demo quickstart — for recruiters, reviewers, and first-time visitors
+# who don't have a Conjura-style CSV on hand. Loads a small pre-committed
+# sample and runs the full pipeline in one click.
+# -----------------------------------------------------------------------------
+DEMO_CSV = ROOT / "data" / "sample" / "demo.csv"
+
+with st.container():
+    st.markdown(
+        "**🚀 First time here?** Click below to load a small sample of the "
+        "Conjura eCommerce dataset and skip straight to the recommendation."
+    )
+    demo_clicked = st.button(
+        "Load demo data and run the full pipeline",
+        type="primary",
+        use_container_width=False,
+        disabled=not DEMO_CSV.exists(),
+        help=(
+            f"Reads {DEMO_CSV.name} (~5,000 rows) → cleans → fits MMM → "
+            "optimizes → populates every page. Takes about 30 seconds."
+        ),
+    )
+
+    if demo_clicked:
+        with st.spinner("Loading demo data and running the full pipeline..."):
+            raw_target = ROOT / "data" / "raw" / "demo.csv"
+            raw_target.parent.mkdir(parents=True, exist_ok=True)
+            import shutil
+            shutil.copy(DEMO_CSV, raw_target)
+
+            pipeline_result = run_pipeline(raw_path=str(raw_target))
+
+            # Populate session state so downstream pages behave as if a normal
+            # upload+confirm just finished.
+            st.session_state.raw_path = str(raw_target)
+            st.session_state.cleaned_df = pipeline_result["ready_df"]
+            st.session_state.train_df = pipeline_result["train_df"]
+            st.session_state.test_df = pipeline_result["test_df"]
+            st.session_state.eda_report = pipeline_result["eda_report"]
+            st.session_state.upload_complete = True
+            st.session_state.schema_confirmed = True
+            st.session_state.phase = "analysis"
+            st.session_state.confirmed_target = "y"
+            st.session_state.confirmed_budget = 831_000.0
+            st.session_state.confirmed_budget_period = "Weekly"
+            st.session_state.demo_mode = True
+            _invalidate_downstream()
+
+        st.success(
+            "✅ Demo data loaded. Continue to **Step 2: Backward Analysis** "
+            "in the sidebar, or jump ahead to the results on any downstream page."
+        )
+        if st.button("Continue to Step 2: Backward Analysis"):
+            st.switch_page("pages/2_backward_analysis.py")
+
+st.divider()
+
 st.markdown(
     """
-Upload your dataset in any of these formats:
+Or upload your own dataset in any of these formats:
 - **`.zip` file** containing your CSV + an optional `.xlsx` data dictionary
 - **`.csv` file** directly
 
